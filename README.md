@@ -12,6 +12,14 @@ A tool for automated analysis of APKs to identify dependencies, de-obfuscate cod
   - Base64 content detection and validation
   - Cross-reference analysis to find file usage in code and assets
   - Suspicious file identification
+- **Shared Library Analysis**: Advanced analysis of native libraries (.so files) including:
+  - Architecture/ABI detection (ARM, ARM64, x86, x86_64)
+  - Symbol extraction and dependency mapping
+  - String analysis and suspicious pattern detection
+  - Security feature assessment (NX bit, stack canaries, PIE, RELRO)
+  - Packer detection and entropy analysis
+  - Hash calculation including fuzzy hashing (ssdeep)
+  - Cross-referencing with Java native method declarations
 - **Code Analysis**: Intelligent code analysis using LLMs to identify security vulnerabilities and interesting functionality
 - **Multiple LLM Support**: Choose from CodeLlama, GPT-4, or open-source models for analysis
 - **Dependency Detection**: Automatically identify and catalog app dependencies
@@ -34,7 +42,8 @@ reD2/
 └── utils/              # Utility modules
     ├── __init__.py     # Package initialization
     ├── apk.py          # APK extraction, decompilation, and file analysis
-    └── llm.py          # LLM integration and code analysis
+    ├── llm.py          # LLM integration and code analysis
+    └── shared_library_analyzer.py  # Advanced shared library (.so) analysis
 ```
 
 ## Installation
@@ -121,6 +130,40 @@ cross_refs = analyzer.get_file_cross_references('path/to/app.apk', 'decompiled/d
 - **Cross-Reference Analysis**: Maps file usage across decompiled code and resources
 - **Suspicious File Detection**: Flags files with potentially suspicious characteristics
 - **File Categorization**: Groups files by type (code, resources, assets, libraries, etc.)
+
+### Shared Library Analysis
+
+MobileGPT includes advanced analysis capabilities for shared libraries (.so files) found in APKs through the `SharedLibraryAnalyzer`:
+
+```python
+from utils.shared_library_analyzer import SharedLibraryAnalyzer
+
+# Create analyzer instance
+analyzer = SharedLibraryAnalyzer()
+
+# Analyze a single shared library
+library_analysis = analyzer.analyze_shared_library('path/to/library.so')
+
+# Analyze all libraries in an APK
+apk_libraries = analyzer.analyze_apk_libraries('path/to/app.apk')
+
+# Cross-reference native methods with library symbols
+cross_refs = analyzer.cross_reference_java_natives('path/to/app.apk', 'decompiled/dir')
+```
+
+### Shared Library Analysis Features
+
+- **Architecture/ABI Detection**: Automatically detects ARM, ARM64, x86, x86_64 architectures
+- **Symbol Extraction**: Extracts exported, imported, and local symbols using nm and objdump
+- **String Analysis**: Finds suspicious strings, URLs, crypto references, and file paths
+- **Dependency Mapping**: Maps shared library dependencies and SONAME information
+- **Security Analysis**: Checks for NX bit, stack canaries, PIE, RELRO, and fortification
+- **Packer Detection**: Identifies common packers and calculates file entropy
+- **Hash Calculation**: Computes MD5, SHA1, SHA256, and fuzzy hashes (ssdeep)
+- **ELF Analysis**: Detailed analysis of ELF file structure, sections, and program headers
+- **JNI Cross-Reference**: Maps Java native method declarations to library symbols
+- **Suspicious Pattern Detection**: Identifies anti-debugging, VM detection, and malware indicators
+- **Comprehensive Reporting**: Generates detailed analysis summaries with risk scoring
 
 ### Command Line Options
 
@@ -222,6 +265,7 @@ The test suite covers:
   - androguard (APK parsing and analysis)
   - python-magic (file type detection)
   - frida-tools (dynamic analysis support)
+  - ssdeep (fuzzy hashing for shared library analysis)
 
 ## Development
 
