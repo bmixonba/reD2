@@ -49,7 +49,7 @@ def find_apk_files(apk_directory: str) -> List[str]:
     return [str(apk_file) for apk_file in apk_files]
 
 
-def process_single_apk(apk_path: str, llm_analyzer, output_dir: Optional[str] = None) -> Dict:
+def process_single_apk(apk_path: str, jadx_path: str, llm_analyzer, output_dir: Optional[str] = None) -> Dict:
     """
     Process a single APK file through the complete analysis pipeline.
     
@@ -64,7 +64,7 @@ def process_single_apk(apk_path: str, llm_analyzer, output_dir: Optional[str] = 
     logging.info(f"Processing APK: {apk_path}")
     
     # Step 1: Extract APK information and decompile
-    apk_info, decompiled_dir, interesting_files, dependencies = analyze_apk(apk_path, output_dir)
+    apk_info, decompiled_dir, interesting_files, dependencies = analyze_apk(apk_path, output_dir, jadx_path)
     
     if not apk_info:
         logging.error(f"Failed to analyze APK: {apk_path}")
@@ -197,6 +197,11 @@ def main():
         '--model-name',
         help='Specific model name (optional)'
     )
+
+    parser.add_argument(
+        '--jadx-path',
+        help='Path to jadx executable (optional)'
+    )
     
     parser.add_argument(
         '--output-dir',
@@ -257,7 +262,7 @@ def main():
         print(f"\nProcessing APK {i}/{len(apk_files)}: {os.path.basename(apk_path)}")
         
         try:
-            results = process_single_apk(apk_path, llm_analyzer, args.output_dir)
+            results = process_single_apk(apk_path, args.jadx_path, llm_analyzer, args.output_dir)
             
             if 'error' not in results:
                 all_results.append(results)

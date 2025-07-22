@@ -644,7 +644,7 @@ class APKAnalyzer:
         return suspicious
 
 
-def analyze_apk(apk_path: str, output_dir: str) -> Tuple[Dict, str, List[str], List[str]]:
+def analyze_apk(apk_path: str, output_dir: str, jadx_path: str) -> Tuple[Dict, str, List[str], List[str]]:
     """
     Convenience function to perform complete APK analysis.
     
@@ -655,7 +655,7 @@ def analyze_apk(apk_path: str, output_dir: str) -> Tuple[Dict, str, List[str], L
     Returns:
         Tuple of (apk_info, decompiled_dir, interesting_files, dependencies)
     """
-    analyzer = APKAnalyzer()
+    analyzer = APKAnalyzer(jadx_path)
     
     # Extract APK metadata
     apk_info = analyzer.extract_apk_info(apk_path)
