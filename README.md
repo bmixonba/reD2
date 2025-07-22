@@ -6,6 +6,12 @@ A tool for automated analysis of APKs to identify dependencies, de-obfuscate cod
 
 - **APK Extraction & Decompilation**: Automated extraction and decompilation of APK files using jadx
 - **Manifest Analysis**: Parse Android manifest files to extract app metadata, permissions, and components
+- **File-Level Metadata Extraction**: Comprehensive analysis of individual files within APKs including:
+  - MIME type and magic number detection
+  - File size analysis and categorization
+  - Base64 content detection and validation
+  - Cross-reference analysis to find file usage in code and assets
+  - Suspicious file identification
 - **Code Analysis**: Intelligent code analysis using LLMs to identify security vulnerabilities and interesting functionality
 - **Multiple LLM Support**: Choose from CodeLlama, GPT-4, or open-source models for analysis
 - **Dependency Detection**: Automatically identify and catalog app dependencies
@@ -22,9 +28,12 @@ MobileGPT/
 ├── README.md           # This file
 ├── apks/               # Directory for APK files to analyze
 │   └── README.md       # Instructions for APK placement
+├── tests/              # Test suite
+│   ├── __init__.py     # Test package initialization
+│   └── test_apk.py     # APK analysis tests
 └── utils/              # Utility modules
     ├── __init__.py     # Package initialization
-    ├── apk.py          # APK extraction and decompilation functions
+    ├── apk.py          # APK extraction, decompilation, and file analysis
     └── llm.py          # LLM integration and code analysis
 ```
 
@@ -81,6 +90,38 @@ python main.py --verbose
 python main.py --model-type codellama --model-name "codellama/CodeLlama-13b-Instruct-hf"
 ```
 
+### File Metadata Analysis
+
+MobileGPT now provides comprehensive file-level analysis:
+
+```python
+from utils.apk import APKAnalyzer, analyze_apk_comprehensive
+
+# Create analyzer instance
+analyzer = APKAnalyzer()
+
+# Extract detailed file metadata
+file_metadata = analyzer.extract_file_metadata('path/to/app.apk')
+
+# Perform comprehensive analysis including file types and cross-references
+comprehensive_results = analyze_apk_comprehensive('path/to/app.apk')
+
+# Analyze file types and identify suspicious files
+file_analysis = analyzer.analyze_file_types('path/to/app.apk')
+
+# Find cross-references between files and code
+cross_refs = analyzer.get_file_cross_references('path/to/app.apk', 'decompiled/dir')
+```
+
+### File Metadata Features
+
+- **MIME Type Detection**: Identifies file types using python-magic or fallback detection
+- **Base64 Content Detection**: Finds and validates base64 encoded content within files
+- **File Size Analysis**: Categorizes files by size and identifies unusually large files
+- **Cross-Reference Analysis**: Maps file usage across decompiled code and resources
+- **Suspicious File Detection**: Flags files with potentially suspicious characteristics
+- **File Categorization**: Groups files by type (code, resources, assets, libraries, etc.)
+
 ### Command Line Options
 
 - `--apk-dir`: Directory containing APK files (default: `apks`)
@@ -117,11 +158,14 @@ MobileGPT supports multiple LLM backends for code analysis:
 MobileGPT generates comprehensive analysis reports including:
 
 - **APK Metadata**: Package name, version, permissions, components
+- **File-Level Analysis**: Detailed metadata for each file including MIME types, sizes, and base64 content
 - **Dependencies**: List of imported libraries and frameworks
 - **Security Issues**: Potential vulnerabilities and security concerns
 - **Code Patterns**: Identified architectural patterns and structures
 - **Frida Hook Suggestions**: Recommended methods and functions to hook
 - **File Analysis**: Detailed analysis of interesting code files
+- **Cross-References**: Mapping of file usage across code and assets
+- **Suspicious Files**: Identification of potentially malicious or unusual files
 
 ## Examples
 
@@ -142,6 +186,31 @@ python main.py --model-type codellama --output-dir analysis_results/ --verbose
 python main.py --single-apk suspicious_app.apk --model-type codellama
 ```
 
+## Testing
+
+MobileGPT includes a comprehensive test suite to validate file metadata extraction and base64 detection:
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test file
+python tests/test_apk.py
+
+# Run tests with coverage
+python -m pytest tests/ --cov=utils --cov-report=html
+```
+
+### Test Coverage
+
+The test suite covers:
+- File metadata extraction functionality
+- MIME type and magic number detection
+- Base64 content detection and validation
+- File categorization and suspicious file identification
+- Cross-reference analysis
+- Binary file detection
+
 ## Requirements
 
 - Python 3.8+
@@ -150,8 +219,8 @@ python main.py --single-apk suspicious_app.apk --model-type codellama
   - transformers (for LLM models)
   - torch (PyTorch for model inference)
   - sentencepiece (tokenization)
-  - apkutils (APK parsing)
-  - jadx-wrapper (jadx integration)
+  - androguard (APK parsing and analysis)
+  - python-magic (file type detection)
   - frida-tools (dynamic analysis support)
 
 ## Development
