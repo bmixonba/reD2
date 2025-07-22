@@ -17,3 +17,4 @@ frida-tools>=12.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
+ssdeep>=3.4
