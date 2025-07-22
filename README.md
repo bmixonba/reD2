@@ -1,4 +1,4 @@
-# MobileGPT
+# reD2
 
 A tool for automated analysis of APKs to identify dependencies, de-obfuscate code, identify interesting files and their semantics, and generate suggestions for Frida hooks using Large Language Models (LLMs).
 
@@ -22,7 +22,7 @@ A tool for automated analysis of APKs to identify dependencies, de-obfuscate cod
 ## Directory Structure
 
 ```
-MobileGPT/
+reD2/
 ├── main.py              # Entry point - orchestrates APK processing
 ├── requirements.txt     # Python dependencies
 ├── README.md           # This file
@@ -41,8 +41,8 @@ MobileGPT/
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/bmixonba/MobileGPT.git
-   cd MobileGPT
+   git clone https://github.com/bmixonba/reD2.git
+   cd reD2
    ```
 
 2. Install Python dependencies:
@@ -66,7 +66,7 @@ MobileGPT/
 ### Basic Usage
 
 1. Place APK files in the `apks/` directory
-2. Run MobileGPT:
+2. Run reD2:
    ```bash
    python main.py
    ```
@@ -92,7 +92,7 @@ python main.py --model-type codellama --model-name "codellama/CodeLlama-13b-Inst
 
 ### File Metadata Analysis
 
-MobileGPT now provides comprehensive file-level analysis:
+reD2 now provides comprehensive file-level analysis:
 
 ```python
 from utils.apk import APKAnalyzer, analyze_apk_comprehensive
@@ -133,7 +133,7 @@ cross_refs = analyzer.get_file_cross_references('path/to/app.apk', 'decompiled/d
 
 ## Model Selection
 
-MobileGPT supports multiple LLM backends for code analysis:
+reD2 supports multiple LLM backends for code analysis:
 
 ### CodeLlama
 - **Best for**: Code understanding and security analysis
@@ -155,7 +155,7 @@ MobileGPT supports multiple LLM backends for code analysis:
 
 ## Output
 
-MobileGPT generates comprehensive analysis reports including:
+reD2 generates comprehensive analysis reports including:
 
 - **APK Metadata**: Package name, version, permissions, components
 - **File-Level Analysis**: Detailed metadata for each file including MIME types, sizes, and base64 content
@@ -188,7 +188,7 @@ python main.py --single-apk suspicious_app.apk --model-type codellama
 
 ## Testing
 
-MobileGPT includes a comprehensive test suite to validate file metadata extraction and base64 detection:
+reD2 includes a comprehensive test suite to validate file metadata extraction and base64 detection:
 
 ```bash
 # Run all tests
