@@ -118,7 +118,7 @@ class APKAnalyzer:
             self.logger.error(f"Error during decompilation: {e}")
             return ""
     
-    def find_interesting_files(self, decompiled_dir: str) -> List[str]:
+    def find_interesting_files(self, decompiled_dir: str, readn: Optional[int] = None, topn: Optional[int] = None) -> List[str]:
         """
         Find interesting files in decompiled APK for analysis.
         
@@ -158,10 +158,15 @@ class APKAnalyzer:
                     # Add files containing potential security-related keywords
                     try:
                         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            content = f.read(1000)  # Read first 1KB for quick check
+                            if readn:
+                                content = f.read(readn)  # Read first 1KB for quick check
+                            else:
+                                content = f.read()  # Read all 
                             security_keywords = [
                                 'encrypt', 'decrypt', 'password', 'token', 'api_key',
-                                'secret', 'auth', 'login', 'certificate', 'ssl', 'tls'
+                                'secret', 'auth', 'login', 'certificate',
+                                'ssl', 'tls', "base64", "vpn", "shadowsocks",
+                                "tun2sock", "redsocks", "strongswan", "openvpn"
                             ]
                             if any(keyword.lower() in content.lower() for keyword in security_keywords):
                                 if file_path not in interesting_files:
@@ -170,7 +175,10 @@ class APKAnalyzer:
                         continue  # Skip files that can't be read
         
         self.logger.info(f"Found {len(interesting_files)} interesting files")
-        return interesting_files[:20]  # Limit to top 20 files to avoid overwhelming analysis
+        if topn:
+            return interesting_files[:topn]  # Limit to top 20 files to avoid overwhelming analysis
+        else:
+            return interesting_files
     
     def get_dependencies(self, decompiled_dir: str) -> List[str]:
         """

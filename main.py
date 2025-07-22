@@ -65,6 +65,8 @@ def process_single_apk(apk_path: str, jadx_path: str, llm_analyzer, output_dir: 
     
     # Step 1: Extract APK information and decompile
     apk_info, decompiled_dir, interesting_files, dependencies = analyze_apk(apk_path, output_dir, jadx_path)
+
+    print(f"MobileGPT.process_single_apk - interesting_files: {interesting_files}")
     
     if not apk_info:
         logging.error(f"Failed to analyze APK: {apk_path}")
@@ -78,7 +80,7 @@ def process_single_apk(apk_path: str, jadx_path: str, llm_analyzer, output_dir: 
     # Step 2: Analyze interesting files with LLM
     file_analyses = []
     
-    for file_path in interesting_files[:5]:  # Limit to top 5 files to avoid overwhelming
+    for file_path in interesting_files[:1]:  # Limit to top 5 files to avoid overwhelming
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 file_content = f.read(5000)  # Read first 5KB of each file
