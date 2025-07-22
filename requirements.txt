@@ -8,6 +8,7 @@ sentencepiece>=0.1.99
 # jadx-wrapper>=0.1.0
 # jadx-wrapper
 androguard
+python-magic>=0.4.27
 
 # Dynamic analysis and instrumentation
 frida-tools>=12.0.0
