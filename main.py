@@ -64,7 +64,7 @@ def process_single_apk(apk_path: str, llm_analyzer, output_dir: Optional[str] = 
     logging.info(f"Processing APK: {apk_path}")
     
     # Step 1: Extract APK information and decompile
-    apk_info, decompiled_dir, interesting_files, dependencies = analyze_apk(apk_path)
+    apk_info, decompiled_dir, interesting_files, dependencies = analyze_apk(apk_path, output_dir)
     
     if not apk_info:
         logging.error(f"Failed to analyze APK: {apk_path}")

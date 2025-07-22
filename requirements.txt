@@ -4,8 +4,10 @@ torch>=2.0.0
 sentencepiece>=0.1.99
 
 # APK analysis tools
-apkutils>=0.10.2
-jadx-wrapper>=0.1.0
+# apkutils>=0.10.2
+# jadx-wrapper>=0.1.0
+# jadx-wrapper
+androguard
 
 # Dynamic analysis and instrumentation
 frida-tools>=12.0.0

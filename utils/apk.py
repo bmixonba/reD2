@@ -8,9 +8,13 @@ import tempfile
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from androguard.core import apk
+from androguard.pentest import Pentest
+from androguard.decompiler import graph, dataflow 
+
 
 try:
-    from apkutils import APK
+    import androguard as ag
     import subprocess
 except ImportError as e:
     logging.warning(f"Import error: {e}. Please install dependencies: pip install -r requirements.txt")
@@ -40,21 +44,22 @@ class APKAnalyzer:
             Dictionary containing APK metadata
         """
         try:
-            apk = APK(apk_path)
+            app = apk.APK(apk_path)
+            print(app)
             
             info = {
-                'package_name': apk.package_name,
-                'version_name': apk.version_name,
-                'version_code': apk.version_code,
-                'app_name': apk.application_name,
-                'min_sdk': apk.min_sdk_version,
-                'target_sdk': apk.target_sdk_version,
-                'permissions': apk.permissions,
-                'activities': apk.activities,
-                'services': apk.services,
-                'receivers': apk.receivers,
-                'providers': apk.providers,
-                'file_list': apk.file_list,
+                'package_name': app.get_package(),
+                'version_name': app.get_androidversion_name(),
+                'version_code': app.get_androidversion_code(),
+                'app_name': app.get_app_name(),
+                'min_sdk': app.get_min_sdk_version(),
+                'target_sdk': app.get_target_sdk_version(),
+                'permissions': app.get_permissions(),
+                'activities': app.get_activities(),
+                'services': app.get_services(),
+                'receivers': app.get_receivers(),
+                'providers': app.get_providers(),
+                'file_list': app.get_files(),
             }
             
             self.logger.info(f"Extracted info for {info.get('package_name', 'Unknown')}")
@@ -75,6 +80,7 @@ class APKAnalyzer:
         Returns:
             Path to decompiled output directory
         """
+        print(f"decompile_apk({apk_path}, {output_dir})")
         if output_dir is None:
             output_dir = tempfile.mkdtemp(prefix="mobilegpt_decompiled_")
         
@@ -119,6 +125,7 @@ class APKAnalyzer:
         Returns:
             List of interesting file paths
         """
+        print(f"find_interesting_files({decompiled_dir})")
         if not os.path.exists(decompiled_dir):
             return []
         
@@ -196,7 +203,7 @@ class APKAnalyzer:
         return sorted(list(dependencies))
 
 
-def analyze_apk(apk_path: str) -> Tuple[Dict, str, List[str], List[str]]:
+def analyze_apk(apk_path: str, output_dir: str) -> Tuple[Dict, str, List[str], List[str]]:
     """
     Convenience function to perform complete APK analysis.
     
@@ -212,7 +219,7 @@ def analyze_apk(apk_path: str) -> Tuple[Dict, str, List[str], List[str]]:
     apk_info = analyzer.extract_apk_info(apk_path)
     
     # Decompile APK
-    decompiled_dir = analyzer.decompile_apk(apk_path)
+    decompiled_dir = analyzer.decompile_apk(apk_path, output_dir)
     
     if decompiled_dir:
         # Find interesting files
