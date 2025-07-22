@@ -1,0 +1,5 @@
+# APK analysis dependencies
+androguard>=4.1.0
+python-magic>=0.4.27
+
+# Base64 detection and file analysis
