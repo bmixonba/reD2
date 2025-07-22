@@ -34,16 +34,19 @@ reD2/
 ├── main.py              # Entry point - orchestrates APK processing
 ├── requirements.txt     # Python dependencies
 ├── README.md           # This file
+├── example_pyghidra_integration.py  # Example script demonstrating Ghidra integration
 ├── apks/               # Directory for APK files to analyze
 │   └── README.md       # Instructions for APK placement
 ├── tests/              # Test suite
 │   ├── __init__.py     # Test package initialization
-│   └── test_apk.py     # APK analysis tests
+│   ├── test_apk.py     # APK analysis tests
+│   └── test_shared_library_analyzer.py  # Shared library analysis tests
 └── utils/              # Utility modules
     ├── __init__.py     # Package initialization
     ├── apk.py          # APK extraction, decompilation, and file analysis
     ├── llm.py          # LLM integration and code analysis
-    └── shared_library_analyzer.py  # Advanced shared library (.so) analysis
+    ├── shared_library_analyzer.py  # Advanced shared library (.so) analysis
+    └── pyghidra_integration.py     # PyGhidra integration for enhanced analysis
 ```
 
 ## Installation
@@ -149,7 +152,124 @@ apk_libraries = analyzer.analyze_apk_libraries('path/to/app.apk')
 
 # Cross-reference native methods with library symbols
 cross_refs = analyzer.cross_reference_java_natives('path/to/app.apk', 'decompiled/dir')
+
+# Enhanced analysis with Ghidra integration (if available)
+enhanced_analysis = analyzer.analyze_with_ghidra('path/to/library.so')
+
+# Check Ghidra availability
+ghidra_info = analyzer.get_ghidra_info()
+print(f"Ghidra available: {analyzer.is_ghidra_available()}")
 ```
+
+### PyGhidra Integration for Advanced Analysis
+
+reD2 now includes optional integration with Ghidra through pyghidra for advanced static analysis capabilities beyond what standard tools like `nm`, `readelf`, and `strings` can provide.
+
+#### Installation and Setup
+
+To enable Ghidra integration:
+
+1. **Install Ghidra**:
+   ```bash
+   # Download from https://ghidra-sre.org/
+   # Extract to a directory (e.g., /opt/ghidra)
+   ```
+
+2. **Install pyghidra**:
+   ```bash
+   pip install pyghidra
+   ```
+
+3. **Set environment variable**:
+   ```bash
+   export GHIDRA_INSTALL_DIR=/path/to/ghidra
+   ```
+
+4. **Verify Java 17+**:
+   ```bash
+   java --version  # Ensure Java 17 or later is installed
+   ```
+
+#### Ghidra Integration Features
+
+The pyghidra integration provides several advanced capabilities:
+
+- **Function Analysis**: Accurate function boundary detection, calling conventions, and parameter analysis
+- **Cross-Reference Analysis**: Comprehensive tracking of all references between functions, data, and strings
+- **Advanced Symbol Analysis**: Symbol table analysis beyond standard ELF tools
+- **Memory Layout Analysis**: Detailed memory segment analysis with permissions and initialization status
+- **Enhanced String Analysis**: Better Unicode support and strings embedded in data structures
+- **Custom Script Support**: Ability to run custom Ghidra scripts for specialized analysis
+
+#### Usage Examples
+
+```python
+from utils.shared_library_analyzer import SharedLibraryAnalyzer
+from utils.pyghidra_integration import check_pyghidra_availability
+
+# Check if Ghidra is available
+is_available, status = check_pyghidra_availability()
+print(f"Ghidra available: {is_available} - {status}")
+
+# Create analyzer
+analyzer = SharedLibraryAnalyzer()
+
+# Standard + Ghidra enhanced analysis
+results = analyzer.analyze_with_ghidra(
+    'path/to/library.so',
+    merge_with_standard=True  # Combines both standard and Ghidra results
+)
+
+# Ghidra-only analysis
+ghidra_only = analyzer.analyze_with_ghidra(
+    'path/to/library.so',
+    merge_with_standard=False  # Only Ghidra analysis
+)
+
+# Custom Ghidra analysis options
+options = {
+    'extract_functions': True,
+    'extract_xrefs': True,
+    'extract_strings': True,
+    'custom_scripts': ['/path/to/custom_script.py']
+}
+custom_analysis = analyzer.analyze_with_ghidra(
+    'path/to/library.so',
+    ghidra_options=options
+)
+
+# Access Ghidra-specific results
+if 'ghidra_analysis' in results:
+    ghidra_data = results['ghidra_analysis']
+    functions = ghidra_data.get('functions', {})
+    xrefs = ghidra_data.get('cross_references', {})
+    symbols = ghidra_data.get('symbols', {})
+    memory = ghidra_data.get('memory_layout', {})
+```
+
+#### Graceful Fallback
+
+The integration gracefully handles cases where pyghidra is not available:
+
+```python
+analyzer = SharedLibraryAnalyzer()
+
+# This works whether or not Ghidra is available
+results = analyzer.analyze_with_ghidra('library.so')
+
+# Check if Ghidra analysis was successful
+ghidra_section = results.get('ghidra_analysis', {})
+if ghidra_section.get('available', False):
+    print("Enhanced Ghidra analysis completed")
+    # Access Ghidra-specific features
+else:
+    print("Falling back to standard analysis")
+    print(f"Reason: {ghidra_section.get('error', 'Unknown')}")
+```
+
+#### Example Script
+
+See `example_pyghidra_integration.py` for a comprehensive demonstration of the Ghidra integration capabilities.
 
 ### Shared Library Analysis Features
 
@@ -164,6 +284,12 @@ cross_refs = analyzer.cross_reference_java_natives('path/to/app.apk', 'decompile
 - **JNI Cross-Reference**: Maps Java native method declarations to library symbols
 - **Suspicious Pattern Detection**: Identifies anti-debugging, VM detection, and malware indicators
 - **Comprehensive Reporting**: Generates detailed analysis summaries with risk scoring
+- **PyGhidra Integration**: Advanced static analysis using Ghidra's reverse engineering capabilities (optional)
+  - **Function Analysis**: Accurate function detection with calling conventions and parameters
+  - **Cross-Reference Tracking**: Comprehensive reference analysis between functions, data, and strings
+  - **Advanced Symbol Analysis**: Enhanced symbol table analysis beyond standard ELF tools
+  - **Memory Layout Analysis**: Detailed memory segment analysis with permissions
+  - **Custom Script Support**: Execute custom Ghidra scripts for specialized analysis tasks
 
 ### Command Line Options
 
@@ -266,6 +392,17 @@ The test suite covers:
   - python-magic (file type detection)
   - frida-tools (dynamic analysis support)
   - ssdeep (fuzzy hashing for shared library analysis)
+
+### Optional Dependencies for Enhanced Analysis
+
+- **pyghidra** (for advanced Ghidra integration):
+  ```bash
+  pip install pyghidra
+  ```
+- **Ghidra** (NSA's reverse engineering tool):
+  - Download from: https://ghidra-sre.org/
+  - Requires Java 17 or later
+  - Set GHIDRA_INSTALL_DIR environment variable
 
 ## Development
 

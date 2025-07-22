@@ -451,6 +451,238 @@ class TestSharedLibraryAnalyzerIntegration(unittest.TestCase):
         self.assertIn('risk_level', result['summary'])
 
 
+class TestPyGhidraIntegration(unittest.TestCase):
+    """Tests for PyGhidra integration functionality."""
+    
+    def setUp(self):
+        """Set up PyGhidra integration test fixtures."""
+        if not ANALYZER_AVAILABLE:
+            self.skipTest("SharedLibraryAnalyzer not available")
+        
+        self.analyzer = SharedLibraryAnalyzer()
+        
+        # Create a mock ELF file for testing
+        self.test_elf = self._create_mock_elf_file()
+    
+    def tearDown(self):
+        """Clean up test fixtures."""
+        if hasattr(self, 'test_elf') and os.path.exists(self.test_elf):
+            os.unlink(self.test_elf)
+    
+    def _create_mock_elf_file(self):
+        """Create a minimal ELF file for testing."""
+        with tempfile.NamedTemporaryFile(suffix='.so', delete=False) as tmp_file:
+            # Write ELF magic number and minimal header
+            elf_header = bytearray(64)  # ELF64 header size
+            
+            # ELF magic
+            elf_header[0:4] = b'\x7fELF'
+            # Class: ELF64
+            elf_header[4] = 2
+            # Data: little endian
+            elf_header[5] = 1
+            # Version: current
+            elf_header[6] = 1
+            # OS/ABI: UNIX System V
+            elf_header[7] = 0
+            
+            # e_type: shared object (ET_DYN = 3)
+            elf_header[16:18] = struct.pack('<H', 3)
+            # e_machine: AArch64 (EM_AARCH64 = 183)
+            elf_header[18:20] = struct.pack('<H', 183)
+            
+            tmp_file.write(elf_header)
+            return tmp_file.name
+    
+    def test_ghidra_availability_check(self):
+        """Test Ghidra availability checking."""
+        # Test is_ghidra_available method
+        is_available = self.analyzer.is_ghidra_available()
+        self.assertIsInstance(is_available, bool)
+        
+        # Test get_ghidra_info method
+        info = self.analyzer.get_ghidra_info()
+        self.assertIsInstance(info, dict)
+        self.assertIn('integration_available', info)
+        self.assertIn('analyzer_initialized', info)
+        self.assertIn('ghidra_available', info)
+        self.assertIn('status_message', info)
+    
+    def test_analyze_with_ghidra_merge_mode(self):
+        """Test analyze_with_ghidra with merge_with_standard=True."""
+        results = self.analyzer.analyze_with_ghidra(self.test_elf, merge_with_standard=True)
+        
+        # Should contain all standard analysis sections
+        expected_keys = [
+            'file_info', 'architecture', 'file_type', 'hashes',
+            'symbols', 'strings', 'dependencies', 'security_analysis',
+            'packer_detection', 'suspicious_indicators', 'elf_analysis',
+            'summary', 'ghidra_analysis'
+        ]
+        
+        for key in expected_keys:
+            self.assertIn(key, results, f"Missing key: {key}")
+        
+        # Check ghidra_analysis section
+        ghidra_section = results['ghidra_analysis']
+        self.assertIsInstance(ghidra_section, dict)
+        self.assertIn('available', ghidra_section)
+        
+        # If pyghidra is not available, should have error/status info
+        if not ghidra_section.get('available', False):
+            self.assertTrue(
+                'error' in ghidra_section or 'status' in ghidra_section,
+                "Should have error or status when not available"
+            )
+    
+    def test_analyze_with_ghidra_only_mode(self):
+        """Test analyze_with_ghidra with merge_with_standard=False."""
+        results = self.analyzer.analyze_with_ghidra(self.test_elf, merge_with_standard=False)
+        
+        # Should contain minimal structure
+        self.assertIn('file_info', results)
+        self.assertIn('ghidra_only', results)
+        self.assertTrue(results['ghidra_only'])
+        self.assertIn('ghidra_analysis', results)
+        
+        # If pyghidra is not available, should have error
+        if not self.analyzer.is_ghidra_available():
+            self.assertIn('error', results)
+    
+    def test_analyze_with_ghidra_options(self):
+        """Test analyze_with_ghidra with custom options."""
+        options = {
+            'extract_functions': True,
+            'extract_xrefs': False,
+            'extract_strings': True,
+            'custom_scripts': None
+        }
+        
+        results = self.analyzer.analyze_with_ghidra(
+            self.test_elf, 
+            merge_with_standard=True, 
+            ghidra_options=options
+        )
+        
+        self.assertIsInstance(results, dict)
+        self.assertIn('ghidra_analysis', results)
+    
+    def test_analyze_with_ghidra_nonexistent_file(self):
+        """Test analyze_with_ghidra with non-existent file."""
+        results = self.analyzer.analyze_with_ghidra('/nonexistent/file.so')
+        self.assertIn('error', results)
+        self.assertIn('File not found', results['error'])
+    
+    def test_ghidra_enhancement_methods(self):
+        """Test that enhancement methods handle data correctly."""
+        # Test with empty/minimal data structures
+        standard_results = {
+            'symbols': {'exported': [], 'imported': [], 'count': 0},
+            'strings': {'all_strings': [], 'count': 0},
+            'summary': {'risk_score': 0}
+        }
+        
+        ghidra_results = {
+            'symbols': {'symbol_statistics': {'total_symbols': 10}},
+            'strings': {'string_statistics': {'total_strings': 5}},
+            'analysis_summary': {'success': True, 'function_count': 3}
+        }
+        
+        # This should not raise any exceptions
+        try:
+            enhanced = self.analyzer._merge_ghidra_insights(standard_results, ghidra_results)
+            self.assertIsInstance(enhanced, dict)
+        except Exception as e:
+            self.fail(f"Enhancement methods should handle data gracefully: {e}")
+    
+    def test_pyghidra_integration_import(self):
+        """Test that pyghidra integration imports correctly."""
+        # Test the integration module can be imported
+        try:
+            from utils.pyghidra_integration import (
+                PyGhidraAnalyzer, 
+                check_pyghidra_availability,
+                get_analyzer_instance
+            )
+            
+            # Test availability check
+            is_available, message = check_pyghidra_availability()
+            self.assertIsInstance(is_available, bool)
+            self.assertIsInstance(message, str)
+            
+            # Test factory function
+            analyzer_instance = get_analyzer_instance()
+            self.assertIsNotNone(analyzer_instance)
+            
+        except ImportError as e:
+            self.fail(f"PyGhidra integration should import gracefully: {e}")
+
+
+class TestPyGhidraIntegrationMocked(unittest.TestCase):
+    """Tests for PyGhidra integration with mocked components."""
+    
+    def setUp(self):
+        """Set up mocked test fixtures."""
+        if not ANALYZER_AVAILABLE:
+            self.skipTest("SharedLibraryAnalyzer not available")
+    
+    @patch('utils.shared_library_analyzer.PYGHIDRA_INTEGRATION_AVAILABLE', True)
+    @patch('utils.shared_library_analyzer.PyGhidraAnalyzer')
+    def test_analyzer_with_mocked_pyghidra(self, mock_pyghidra_class):
+        """Test analyzer behavior with mocked PyGhidra."""
+        # Setup mock
+        mock_analyzer = Mock()
+        mock_analyzer.is_available.return_value = True
+        mock_analyzer.analyze_library.return_value = {
+            'available': True,
+            'functions': {'total_functions': 5},
+            'symbols': {'symbol_statistics': {'total_symbols': 20}},
+            'analysis_summary': {'success': True, 'function_count': 5}
+        }
+        mock_pyghidra_class.return_value = mock_analyzer
+        
+        # Test analyzer initialization
+        analyzer = SharedLibraryAnalyzer()
+        self.assertTrue(analyzer.is_ghidra_available())
+        
+        # Test analysis call
+        with tempfile.NamedTemporaryFile(suffix='.so') as tmp_file:
+            tmp_file.write(b'\x7fELF' + b'\x00' * 60)  # Minimal ELF
+            tmp_file.flush()
+            
+            results = analyzer.analyze_with_ghidra(tmp_file.name)
+            
+            # Verify mock was called
+            mock_analyzer.analyze_library.assert_called_once()
+            
+            # Verify results structure
+            self.assertIn('ghidra_analysis', results)
+            self.assertTrue(results['ghidra_analysis']['available'])
+    
+    @patch('utils.pyghidra_integration.PYGHIDRA_AVAILABLE', False)
+    def test_graceful_fallback_when_pyghidra_unavailable(self):
+        """Test graceful fallback when pyghidra is not available."""
+        from utils.pyghidra_integration import PyGhidraAnalyzer, check_pyghidra_availability
+        
+        # Test availability check
+        is_available, message = check_pyghidra_availability()
+        self.assertFalse(is_available)
+        self.assertIn('not installed', message.lower())
+        
+        # Test analyzer creation
+        analyzer = PyGhidraAnalyzer()
+        self.assertFalse(analyzer.is_available())
+        
+        # Test analysis call returns proper error structure
+        with tempfile.NamedTemporaryFile(suffix='.so') as tmp_file:
+            tmp_file.write(b'\x7fELF' + b'\x00' * 60)
+            tmp_file.flush()
+            
+            results = analyzer.analyze_library(tmp_file.name)
+            self.assertFalse(results.get('available', True))
+            self.assertIn('error', results)
+
+
 class TestSharedLibraryAnalyzerMocked(unittest.TestCase):
     """Tests using mocked external dependencies."""
     
