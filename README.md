@@ -28,7 +28,11 @@ A tool for automated analysis of APKs to identify dependencies, de-obfuscate cod
 - **Security Assessment**: Identify potential security issues and vulnerabilities
 - **Batch Processing**: Process multiple APK files in a single run
 
-### Security LLM Training Framework (New)
+### Security LLM Training Framework (Enhanced)
+- **Comprehensive Security Corpus Harvesting**: Modular pipeline for collecting data from multiple security sources
+- **Multi-Source Data Integration**: CVE/NVD, CWE, MITRE ATT&CK, Metasploit, security reports, and research papers
+- **Intelligent Data Processing**: Deduplication, cross-reference enrichment, and relationship mapping
+- **Modular Harvester Architecture**: Easily extensible system for adding new data sources
 - **Metasploit PoC Harvesting**: Automated extraction and annotation of Metasploit Framework modules
 - **Dataset Preparation**: Comprehensive corpus preparation with ethical safeguards and content filtering
 - **Fine-tuning Pipeline**: HuggingFace Transformers integration with PEFT/LoRA support
@@ -44,14 +48,34 @@ reD2/
 ├── README.md           # This file
 ├── scripts/            # Security LLM training framework
 │   ├── __init__.py     # Package initialization
-│   ├── harvest_metasploit_pocs.py    # Metasploit PoC harvesting
-│   ├── prepare_security_corpus.py    # Dataset preparation and annotation
-│   └── finetune_sec_llm.py          # HuggingFace fine-tuning with PEFT/LoRA
+│   ├── harvest_security_corpus.py      # Main orchestration script for comprehensive data harvesting
+│   ├── harvest_metasploit_pocs.py      # Metasploit PoC harvesting
+│   ├── prepare_security_corpus.py      # Dataset preparation and annotation
+│   ├── finetune_sec_llm.py            # HuggingFace fine-tuning with PEFT/LoRA
+│   └── train_security_llm.py          # Training pipeline coordination
+├── harvesters/         # Modular data source harvesters
+│   ├── __init__.py     # Package initialization
+│   ├── base_harvester.py              # Base harvester class with common functionality
+│   ├── cve_harvester.py               # CVE/NVD API data collection
+│   ├── cwe_harvester.py               # Common Weakness Enumeration data
+│   ├── mitre_attack_harvester.py      # MITRE ATT&CK framework data
+│   ├── bugtraq_harvester.py           # Security advisories and reports (placeholder)
+│   └── whitepaper_harvester.py        # Security research papers and whitepapers
+├── data_processors/    # Data processing and enrichment modules
+│   ├── __init__.py     # Package initialization
+│   ├── deduplicator.py                # Intelligent deduplication and merging
+│   └── data_enricher.py               # Cross-reference detection and enrichment
+├── config/             # Configuration templates and examples
+│   └── default_config.json            # Default pipeline configuration
 ├── docs/               # Documentation
-│   ├── project_structure.md          # Framework overview
-│   ├── dataset_schema.md             # Dataset format documentation
-│   ├── prompt_templates.md           # Example prompt templates
-│   └── ethical_guidelines.md         # Ethical and legal guidelines
+│   ├── project_structure.md           # Framework overview
+│   ├── dataset_schema.md              # Dataset format documentation
+│   ├── data_schema.md                 # Comprehensive data schema documentation
+│   ├── security_corpus_pipeline.md    # Pipeline architecture and usage guide
+│   ├── prompt_templates.md            # Example prompt templates
+│   ├── ethical_guidelines.md          # Ethical and legal guidelines
+│   ├── ethical_guidelines_comprehensive.md # Comprehensive ethical framework
+│   └── train_security_llm_usage.md    # Training pipeline usage guide
 ├── examples/           # Example scripts
 │   └── example_pyghidra_integration.py  # Example script demonstrating Ghidra integration
 ├── apks/               # Directory for APK files to analyze
@@ -59,7 +83,8 @@ reD2/
 ├── tests/              # Test suite
 │   ├── __init__.py     # Test package initialization
 │   ├── test_apk.py     # APK analysis tests
-│   └── test_shared_library_analyzer.py  # Shared library analysis tests
+│   ├── test_shared_library_analyzer.py  # Shared library analysis tests
+│   └── test_train_security_llm.py     # Security LLM training tests
 └── utils/              # Utility modules
     ├── __init__.py     # Package initialization
     ├── apk.py          # APK extraction, decompilation, and file analysis
@@ -125,7 +150,34 @@ python main.py --model-type codellama --model-name "codellama/CodeLlama-13b-Inst
 
 ### Security LLM Training Framework
 
-#### 1. Harvest Metasploit PoCs
+#### Complete Pipeline: Comprehensive Security Corpus Harvesting
+
+```bash
+# Run the complete harvesting and preparation pipeline
+python scripts/harvest_security_corpus.py --output comprehensive_corpus.jsonl
+
+# Harvest from specific sources with custom limits
+python scripts/harvest_security_corpus.py \
+  --sources cve cwe mitre_attack metasploit \
+  --limit 1000 \
+  --output security_corpus.jsonl
+
+# Use configuration file for reproducible runs
+python scripts/harvest_security_corpus.py \
+  --config config/production_config.json \
+  --full-pipeline \
+  --output production_corpus.jsonl
+
+# Harvest recent vulnerabilities focus
+python scripts/harvest_security_corpus.py \
+  --sources cve \
+  --source-limits '{"cve": 2000}' \
+  --output recent_vulnerabilities.jsonl
+```
+
+#### Individual Data Source Harvesting
+
+##### 1. Harvest Metasploit PoCs
 
 ```bash
 # Basic harvesting
@@ -138,7 +190,7 @@ python scripts/harvest_metasploit_pocs.py --limit 100 --categories exploits auxi
 python scripts/harvest_metasploit_pocs.py --verbose --clone-dir /tmp/msf --keep-clone
 ```
 
-#### 2. Prepare Training Corpus
+##### 2. Prepare Training Corpus
 
 ```bash
 # Prepare training corpus from harvested data
@@ -151,7 +203,7 @@ python scripts/prepare_security_corpus.py --merge-datasets dataset1.jsonl datase
 python scripts/prepare_security_corpus.py --input data.jsonl --samples-per-item 5 --stats-output stats.json
 ```
 
-#### 3. Fine-tune Security LLM
+##### 3. Fine-tune Security LLM
 
 ```bash
 # Basic fine-tuning
@@ -164,18 +216,60 @@ python scripts/finetune_sec_llm.py --train-data corpus.jsonl --model-name codell
 python scripts/finetune_sec_llm.py --train-data corpus.jsonl --epochs 5 --batch-size 8 --use-wandb
 ```
 
-#### Complete Pipeline Example
+#### Advanced Pipeline Configuration
 
 ```bash
-# 1. Harvest Metasploit modules
-python scripts/harvest_metasploit_pocs.py --limit 1000 --output metasploit_pocs.jsonl
+# Harvest with processing customization
+python scripts/harvest_security_corpus.py \
+  --sources cve cwe mitre_attack \
+  --no-dedupe \
+  --no-enrich \
+  --harvest-only \
+  --output raw_security_data.jsonl
 
-# 2. Prepare training corpus
-python scripts/prepare_security_corpus.py --input metasploit_pocs.jsonl --output security_corpus.jsonl --samples-per-item 3
-
-# 3. Fine-tune model
-python scripts/finetune_sec_llm.py --train-data security_corpus.jsonl --model-name microsoft/DialoGPT-medium --use-lora --epochs 3
+# Full pipeline with verbose logging
+python scripts/harvest_security_corpus.py \
+  --full-pipeline \
+  --verbose \
+  --sources metasploit cve \
+  --source-limits '{"metasploit": 500, "cve": 1000}' \
+  --output comprehensive_security_corpus.jsonl
 ```
+
+#### Complete End-to-End Example
+
+```bash
+# 1. Comprehensive data harvesting from multiple sources
+python scripts/harvest_security_corpus.py \
+  --sources metasploit cve cwe mitre_attack \
+  --limit 500 \
+  --full-pipeline \
+  --config config/default_config.json \
+  --output security_corpus.jsonl \
+  --verbose
+
+# 2. Review generated corpus and statistics
+ls -la security_corpus.jsonl security_corpus_report.json
+
+# 3. Fine-tune model with prepared corpus
+python scripts/finetune_sec_llm.py \
+  --train-data security_corpus.jsonl \
+  --model-name microsoft/DialoGPT-medium \
+  --use-lora \
+  --epochs 3 \
+  --output-dir ./trained_security_model
+```
+
+#### Data Source Overview
+
+| Source | Data Type | Description | Example Count |
+|--------|-----------|-------------|---------------|
+| **Metasploit** | Exploit modules, auxiliary tools | Real-world security tools and exploits | 2,000+ modules |
+| **CVE/NVD** | Vulnerability data | Official vulnerability database with CVSS scores | 100,000+ CVEs |
+| **CWE** | Weakness enumeration | Common weakness patterns and mitigations | 800+ CWEs |
+| **MITRE ATT&CK** | Tactics & techniques | Adversary behavior framework | 600+ techniques |
+| **Security Reports** | Advisories, bulletins | Vendor and researcher security reports | Varies |
+| **Research Papers** | Academic/industry papers | Security research and whitepapers | Varies |
 
 ### File Metadata Analysis
 
@@ -567,7 +661,11 @@ For complete ethical guidelines, see `docs/ethical_guidelines.md`.
 
 ## Documentation
 
+- **Pipeline Architecture**: `docs/security_corpus_pipeline.md` - Comprehensive guide to the harvesting pipeline
+- **Data Schema**: `docs/data_schema.md` - Detailed documentation of data formats and schemas
+- **Configuration Guide**: `config/default_config.json` - Configuration templates and examples
+- **Ethical Framework**: `docs/ethical_guidelines_comprehensive.md` - Comprehensive ethical guidelines
 - **Project Structure**: `docs/project_structure.md` - Overview of the Security LLM Training Framework
-- **Dataset Schema**: `docs/dataset_schema.md` - Data formats and schemas
+- **Dataset Schema**: `docs/dataset_schema.md` - Data formats and schemas (legacy)
 - **Prompt Templates**: `docs/prompt_templates.md` - Example training templates
 - **Ethical Guidelines**: `docs/ethical_guidelines.md` - Comprehensive ethical and legal guidelines
