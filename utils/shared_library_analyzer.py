@@ -10,7 +10,7 @@ import subprocess
 import logging
 import struct
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Optional, Tuple, Set, Any
 from collections import defaultdict
 
 try:
@@ -26,6 +26,13 @@ try:
 except ImportError:
     MAGIC_AVAILABLE = False
     logging.warning("python-magic not available - using fallback file type detection")
+
+try:
+    from .pyghidra_integration import PyGhidraAnalyzer, check_pyghidra_availability
+    PYGHIDRA_INTEGRATION_AVAILABLE = True
+except ImportError:
+    PYGHIDRA_INTEGRATION_AVAILABLE = False
+    logging.info("pyghidra integration not available - advanced Ghidra analysis will be disabled")
 
 
 class SharedLibraryAnalyzer:
@@ -45,6 +52,20 @@ class SharedLibraryAnalyzer:
     def __init__(self):
         """Initialize the SharedLibraryAnalyzer."""
         self.logger = logging.getLogger(__name__)
+        
+        # Initialize PyGhidra analyzer if available
+        self.ghidra_analyzer = None
+        if PYGHIDRA_INTEGRATION_AVAILABLE:
+            try:
+                self.ghidra_analyzer = PyGhidraAnalyzer()
+                if self.ghidra_analyzer.is_available():
+                    self.logger.info("PyGhidra integration enabled")
+                else:
+                    self.logger.info("PyGhidra not properly configured - falling back to standard analysis")
+                    self.ghidra_analyzer = None
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize PyGhidra: {e}")
+                self.ghidra_analyzer = None
         
         # Common Android architectures
         self.android_abis = {
@@ -1016,6 +1037,301 @@ class SharedLibraryAnalyzer:
             summary['risk_level'] = 'low'
         
         return summary
+    
+    def analyze_with_ghidra(self, library_path: str, 
+                           merge_with_standard: bool = True,
+                           ghidra_options: Optional[Dict] = None) -> Dict:
+        """
+        Perform advanced analysis using Ghidra integration.
+        
+        This method leverages pyghidra for deeper static analysis capabilities
+        beyond what standard tools like nm, readelf, and strings can provide.
+        Ghidra excels at function analysis, cross-reference detection, and
+        control flow analysis.
+        
+        Args:
+            library_path: Path to the shared library file
+            merge_with_standard: Whether to merge Ghidra results with standard analysis
+            ghidra_options: Optional dictionary of Ghidra analysis options
+                          - extract_functions: bool (default True)
+                          - extract_xrefs: bool (default True) 
+                          - extract_strings: bool (default True)
+                          - custom_scripts: List[str] (default None)
+                          
+        Returns:
+            Dictionary containing analysis results. If merge_with_standard is True,
+            includes both standard and Ghidra analysis. If False, only Ghidra results.
+            
+        Example:
+            analyzer = SharedLibraryAnalyzer()
+            
+            # Basic Ghidra analysis
+            results = analyzer.analyze_with_ghidra('/path/to/lib.so')
+            
+            # Advanced with custom options
+            options = {
+                'extract_functions': True,
+                'extract_xrefs': True,
+                'custom_scripts': ['/path/to/script.py']
+            }
+            results = analyzer.analyze_with_ghidra('/path/to/lib.so', 
+                                                  ghidra_options=options)
+            
+            # Access Ghidra-specific results
+            if 'ghidra_analysis' in results:
+                functions = results['ghidra_analysis']['functions']
+                xrefs = results['ghidra_analysis']['cross_references']
+        """
+        if not os.path.exists(library_path):
+            return {'error': f'File not found: {library_path}'}
+        
+        # Prepare default options
+        default_options = {
+            'extract_functions': True,
+            'extract_xrefs': True,
+            'extract_strings': True,
+            'custom_scripts': None
+        }
+        
+        if ghidra_options:
+            default_options.update(ghidra_options)
+        
+        # Initialize results structure
+        if merge_with_standard:
+            # Start with standard analysis
+            results = self.analyze_shared_library(library_path)
+        else:
+            # Only basic file info for Ghidra-only analysis
+            results = {
+                'file_info': self._get_file_info(library_path),
+                'ghidra_only': True
+            }
+        
+        # Check if Ghidra is available
+        if not self.ghidra_analyzer or not self.ghidra_analyzer.is_available():
+            ghidra_status = self._get_ghidra_status()
+            results['ghidra_analysis'] = {
+                'available': False,
+                'status': ghidra_status,
+                'error': 'PyGhidra not available or not properly configured'
+            }
+            
+            if not merge_with_standard:
+                # For Ghidra-only analysis, this is a critical failure
+                results['error'] = 'Ghidra analysis requested but not available'
+            
+            return results
+        
+        try:
+            # Perform Ghidra analysis
+            self.logger.info(f"Starting Ghidra analysis for {library_path}")
+            ghidra_results = self.ghidra_analyzer.analyze_library(
+                library_path,
+                extract_functions=default_options['extract_functions'],
+                extract_xrefs=default_options['extract_xrefs'],
+                extract_strings=default_options['extract_strings'],
+                custom_scripts=default_options['custom_scripts']
+            )
+            
+            # Add Ghidra results to the main analysis
+            results['ghidra_analysis'] = ghidra_results
+            
+            # Enhance standard analysis with Ghidra insights if merging
+            if merge_with_standard and ghidra_results.get('available', False):
+                results = self._merge_ghidra_insights(results, ghidra_results)
+            
+            self.logger.info("Ghidra analysis completed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Ghidra analysis failed for {library_path}: {e}")
+            results['ghidra_analysis'] = {
+                'available': True,
+                'error': str(e),
+                'analysis_failed': True
+            }
+        
+        return results
+    
+    def _get_ghidra_status(self) -> str:
+        """Get status of Ghidra availability."""
+        if not PYGHIDRA_INTEGRATION_AVAILABLE:
+            return "PyGhidra integration module not available"
+        
+        try:
+            is_available, message = check_pyghidra_availability()
+            return message
+        except Exception as e:
+            return f"Error checking Ghidra status: {e}"
+    
+    def _merge_ghidra_insights(self, standard_results: Dict, ghidra_results: Dict) -> Dict:
+        """
+        Merge Ghidra analysis insights into standard analysis results.
+        
+        This method enhances the standard analysis with additional insights
+        from Ghidra, creating a comprehensive analysis report.
+        """
+        try:
+            # Enhance symbol analysis with Ghidra symbols
+            if 'symbols' in ghidra_results and 'symbols' in standard_results:
+                self._enhance_symbol_analysis(standard_results['symbols'], 
+                                            ghidra_results['symbols'])
+            
+            # Enhance function analysis
+            if 'functions' in ghidra_results:
+                standard_results['enhanced_functions'] = self._create_enhanced_function_analysis(
+                    standard_results.get('symbols', {}), 
+                    ghidra_results['functions']
+                )
+            
+            # Add cross-reference analysis
+            if 'cross_references' in ghidra_results:
+                standard_results['cross_references'] = ghidra_results['cross_references']
+            
+            # Enhance string analysis with Ghidra findings
+            if ('strings' in ghidra_results and 
+                'strings' in standard_results and 
+                ghidra_results['strings'].get('defined_strings')):
+                self._enhance_string_analysis(standard_results['strings'], 
+                                            ghidra_results['strings'])
+            
+            # Add memory layout information
+            if 'memory_layout' in ghidra_results:
+                standard_results['memory_layout'] = ghidra_results['memory_layout']
+            
+            # Update summary with Ghidra insights
+            if 'summary' in standard_results and 'analysis_summary' in ghidra_results:
+                self._enhance_analysis_summary(standard_results['summary'], 
+                                             ghidra_results['analysis_summary'])
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to merge Ghidra insights: {e}")
+        
+        return standard_results
+    
+    def _enhance_symbol_analysis(self, standard_symbols: Dict, ghidra_symbols: Dict) -> None:
+        """Enhance standard symbol analysis with Ghidra symbol information."""
+        try:
+            # Add Ghidra symbol counts to comparison
+            ghidra_stats = ghidra_symbols.get('symbol_statistics', {})
+            if ghidra_stats:
+                standard_symbols['ghidra_comparison'] = {
+                    'total_symbols': ghidra_stats.get('total_symbols', 0),
+                    'global_symbols': ghidra_stats.get('global_count', 0),
+                    'external_symbols': ghidra_stats.get('external_count', 0),
+                    'analysis_method': 'ghidra_advanced'
+                }
+            
+            # Add detailed symbol categories from Ghidra
+            if 'global_symbols' in ghidra_symbols:
+                standard_symbols['ghidra_global_symbols'] = ghidra_symbols['global_symbols'][:50]  # Limit for size
+            
+            if 'external_symbols' in ghidra_symbols:
+                standard_symbols['ghidra_external_symbols'] = ghidra_symbols['external_symbols'][:50]
+        
+        except Exception as e:
+            self.logger.warning(f"Symbol enhancement failed: {e}")
+    
+    def _create_enhanced_function_analysis(self, standard_symbols: Dict, 
+                                         ghidra_functions: Dict) -> Dict:
+        """Create enhanced function analysis combining standard and Ghidra data."""
+        enhanced = {
+            'source': 'ghidra_analysis',
+            'function_count': ghidra_functions.get('total_functions', 0),
+            'entry_points': ghidra_functions.get('entry_points', []),
+            'function_statistics': ghidra_functions.get('function_statistics', {}),
+            'top_functions_by_size': [],
+            'external_calls': []
+        }
+        
+        try:
+            # Get top functions by size
+            function_details = ghidra_functions.get('function_details', [])
+            if function_details:
+                # Sort by size and get top 10
+                sorted_functions = sorted(function_details, 
+                                        key=lambda x: x.get('size', 0), 
+                                        reverse=True)
+                enhanced['top_functions_by_size'] = sorted_functions[:10]
+                
+                # Extract external function calls
+                external_funcs = [f for f in function_details if f.get('is_external', False)]
+                enhanced['external_calls'] = external_funcs[:20]  # Limit for size
+        
+        except Exception as e:
+            self.logger.warning(f"Function analysis enhancement failed: {e}")
+        
+        return enhanced
+    
+    def _enhance_string_analysis(self, standard_strings: Dict, ghidra_strings: Dict) -> None:
+        """Enhance string analysis with Ghidra string findings."""
+        try:
+            ghidra_stats = ghidra_strings.get('string_statistics', {})
+            if ghidra_stats:
+                standard_strings['ghidra_comparison'] = {
+                    'total_strings': ghidra_stats.get('total_strings', 0),
+                    'unicode_strings': ghidra_stats.get('unicode_count', 0),
+                    'avg_string_length': ghidra_stats.get('avg_length', 0),
+                    'analysis_method': 'ghidra_defined_data'
+                }
+            
+            # Add unicode strings if found
+            if ghidra_strings.get('unicode_strings'):
+                standard_strings['unicode_strings'] = ghidra_strings['unicode_strings'][:20]
+        
+        except Exception as e:
+            self.logger.warning(f"String analysis enhancement failed: {e}")
+    
+    def _enhance_analysis_summary(self, standard_summary: Dict, ghidra_summary: Dict) -> None:
+        """Enhance analysis summary with Ghidra insights."""
+        try:
+            standard_summary['ghidra_analysis'] = {
+                'enabled': True,
+                'success': ghidra_summary.get('success', False),
+                'features_analyzed': ghidra_summary.get('features_analyzed', []),
+                'function_count': ghidra_summary.get('function_count', 0),
+                'symbol_count': ghidra_summary.get('symbol_count', 0),
+                'call_count': ghidra_summary.get('call_count', 0),
+                'external_ref_count': ghidra_summary.get('external_ref_count', 0)
+            }
+            
+            # Update risk assessment based on Ghidra findings
+            if ghidra_summary.get('external_ref_count', 0) > 20:
+                standard_summary['risk_score'] = standard_summary.get('risk_score', 0) + 1
+                
+            if ghidra_summary.get('function_count', 0) > 1000:
+                standard_summary['risk_score'] = standard_summary.get('risk_score', 0) + 1
+        
+        except Exception as e:
+            self.logger.warning(f"Summary enhancement failed: {e}")
+    
+    def is_ghidra_available(self) -> bool:
+        """
+        Check if Ghidra analysis is available.
+        
+        Returns:
+            True if PyGhidra is properly configured and available
+        """
+        return (self.ghidra_analyzer is not None and 
+                self.ghidra_analyzer.is_available())
+    
+    def get_ghidra_info(self) -> Dict[str, Any]:
+        """
+        Get information about Ghidra availability and configuration.
+        
+        Returns:
+            Dictionary with Ghidra status information
+        """
+        info = {
+            'integration_available': PYGHIDRA_INTEGRATION_AVAILABLE,
+            'analyzer_initialized': self.ghidra_analyzer is not None,
+            'ghidra_available': self.is_ghidra_available(),
+            'status_message': self._get_ghidra_status()
+        }
+        
+        if self.ghidra_analyzer:
+            info['ghidra_install_dir'] = getattr(self.ghidra_analyzer, 'ghidra_install_dir', None)
+        
+        return info
     
     def _human_readable_size(self, size: int) -> str:
         """Convert size in bytes to human readable format."""
