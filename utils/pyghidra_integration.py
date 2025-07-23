@@ -33,11 +33,17 @@ import shutil
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
+PYGHIDRA_AVAILABLE=False
+GHIDRA_API_AVAILABLE = False
+
+
 # Graceful handling of pyghidra imports
+
 try:
     import pyghidra
-    from pyghidra import start_ghidra, PyGhidraLauncher
+    from pyghidra import start, HeadlessPyGhidraLauncher
     PYGHIDRA_AVAILABLE = True
+    print(f"pyghidra_integration. import pyghidra PYGHIDRA_AVAILABLE={PYGHIDRA_AVAILABLE}")
     
     # Additional imports that may be needed for advanced analysis
     try:
@@ -49,10 +55,12 @@ try:
         GHIDRA_API_AVAILABLE = True
     except ImportError:
         GHIDRA_API_AVAILABLE = False
+        print(f"GHIDRA_API_AVAILABLE={GHIDRA_API_AVAILABLE}")
         
 except ImportError:
     PYGHIDRA_AVAILABLE = False
     GHIDRA_API_AVAILABLE = False
+    print(f"PYGHIDRA_AVAILABLE={PYGHIDRA_AVAILABLE}, GHIDRA_API_AVAILABLE={GHIDRA_API_AVAILABLE}")
 
 
 class PyGhidraAnalyzer:
@@ -71,7 +79,7 @@ class PyGhidraAnalyzer:
     - Structured output compatible with existing analyzers
     """
     
-    def __init__(self, ghidra_install_dir: Optional[str] = None):
+    def __init__(self, ghidra_install_dir: Optional[str] = None, library_path: Optional[str] = None):
         """
         Initialize the PyGhidra analyzer.
         
@@ -80,10 +88,19 @@ class PyGhidraAnalyzer:
                               If None, uses GHIDRA_INSTALL_DIR environment variable.
         """
         self.logger = logging.getLogger(__name__)
+        self.ghidra_install_dir = None
         self.ghidra_install_dir = ghidra_install_dir or os.getenv('GHIDRA_INSTALL_DIR')
+        print(f"pyghidra_integration.PyGhidraAnalyzer.__init__.self.ghidra_install_dir={self.ghidra_install_dir}, PYGHIDRA_AVAILABLE={PYGHIDRA_AVAILABLE}")
         self.launcher = None
         self.current_program = None
         self._initialized = False
+        self.library_path = library_path
+        self.program_context = None
+        self.flat_api = None
+        self.program = None
+        self.decompiler = None
+        self.program_info = {}
+
         
         # Check availability during initialization
         self._check_availability()
@@ -103,7 +120,7 @@ class PyGhidraAnalyzer:
         
         try:
             # Test if we can initialize pyghidra
-            self.launcher = PyGhidraLauncher(
+            self.launcher = HeadlessPyGhidraLauncher(
                 verbose=False,
                 install_dir=Path(self.ghidra_install_dir)
             )
@@ -164,7 +181,11 @@ class PyGhidraAnalyzer:
         }
         
         try:
-            with start_ghidra(ghidra_dir=self.ghidra_install_dir, verbose=False) as ghidra:
+            pyghidra.start()
+
+            program = self._import_and_analyze(library_path)
+
+            with pyghidra.open_project(os.environ["GHIDRA_PROJECT_DIR"], "ExampleProject", create=True) as ghidra:
                 # Import the binary and analyze it
                 program = self._import_and_analyze(ghidra, library_path)
                 if not program:
@@ -207,6 +228,23 @@ class PyGhidraAnalyzer:
     def _import_and_analyze(self, ghidra, library_path: str):
         """Import binary into Ghidra and run auto-analysis."""
         try:
+
+            self.program_context = pyghidra.open_program(self.library_path, analyze=True)
+            self.flat_api = prog_context.__enter__()
+            self.program = flat_api.getCurrentProgram()
+            from ghidra.app.decompiler import DecompInterface
+
+            self.decompiler = DecompInterface()
+            self.decompiler.openProgram(program)
+            self.program_info['programName'] = program.getName()
+            self.program_info['minAddr'] = program.minAddress
+            self.program_info['maxAddr'] = program.maxAddress
+            self.program_info['lang'] = program.language
+
+            func_mgr = program.getFunctionManager()
+            func_cnt = func_mgr.getFunctionCount()
+
+            ## BEGIN: AI Generated 
             from ghidra.app.util.importer import AutoImporter
             from ghidra.app.util.opinion import LoaderService
             from ghidra.framework.model import DomainFolder
@@ -605,15 +643,16 @@ def check_pyghidra_availability() -> Tuple[bool, str]:
     if not PYGHIDRA_AVAILABLE:
         return False, "pyghidra package not installed"
     
-    ghidra_dir = os.getenv('GHIDRA_INSTALL_DIR')
-    if not ghidra_dir:
+    install_dir = os.getenv('GHIDRA_INSTALL_DIR')
+    print(f"check_pyghidra_availability - install_dir: {install_dir}")
+    if not install_dir:
         return False, "GHIDRA_INSTALL_DIR environment variable not set"
     
-    if not os.path.exists(ghidra_dir):
-        return False, f"Ghidra installation directory not found: {ghidra_dir}"
+    if not os.path.exists(install_dir):
+        return False, f"Ghidra installation directory not found: {install_dir}"
     
     try:
-        analyzer = PyGhidraAnalyzer(ghidra_dir)
+        analyzer = PyGhidraAnalyzer(install_dir)
         if analyzer.is_available():
             return True, "pyghidra is available and configured"
         else:
@@ -636,3 +675,15 @@ def analyze_with_pyghidra(library_path: str, **kwargs) -> Dict[str, Any]:
     """
     analyzer = get_analyzer_instance()
     return analyzer.analyze_library(library_path, **kwargs)
+def test_pyghidra():
+    """ """
+    pyghidra_analyzer = get_analyzer_instance()
+    lib_path = "/media/conntrack/Seagate1/git/vpn-osint2/VPNSuperUnlimitedProxy/SourceArm/lib/arm64-v8a/libtnccs.so"
+    pyghidra_analyzer.analyze_library(lib_path)
+
+def main():
+    """"""
+    test_pyghidra()
+
+if __name__ == '__main__':
+    main()

@@ -88,7 +88,7 @@ class SharedLibraryAnalyzer:
             r'base64|encode|decode',
             
             # System/privilege patterns
-            r'root|sudo|su\b',
+            r'admin|root|sudo|su\b',
             r'/system/|/data/|/sdcard/',
             r'chmod|chown|mount',
             
@@ -104,6 +104,7 @@ class SharedLibraryAnalyzer:
         ]
         
         # Known packers/obfuscators
+        ## TODO: Missing Jiagu packer from Qihoo 360
         self.known_packers = [
             'UPX', 'Themida', 'VMProtect', 'Armadillo', 'ASProtect',
             'Enigma', 'ExeCryptor', 'Molebox', 'MPRESS', 'PESpin',
