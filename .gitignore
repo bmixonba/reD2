@@ -68,3 +68,29 @@ tmp/
 temp/
 .tmp/
 .temp/
+
+# Security LLM Training specific
+# Dataset files (these can be large and sensitive)
+metasploit_dataset.jsonl
+training_corpus.jsonl
+security_dataset.jsonl
+*.jsonl
+
+# Model output directories
+security_llm_model/
+./security_llm_model/
+trained_models/
+
+# Cloned repositories for harvesting
+metasploit-framework/
+/tmp/metasploit_*/
+
+# Training artifacts
+wandb/
+.wandb/
+lightning_logs/
+
+# Evaluation outputs
+evaluation_results.json
+stats.json
+corpus_statistics.json

@@ -1,9 +1,10 @@
 # reD2
 
-A tool for automated analysis of APKs to identify dependencies, de-obfuscate code, identify interesting files and their semantics, and generate suggestions for Frida hooks using Large Language Models (LLMs).
+A tool for automated analysis of APKs to identify dependencies, de-obfuscate code, identify interesting files and their semantics, and generate suggestions for Frida hooks using Large Language Models (LLMs). Now includes a comprehensive Security LLM Training Framework for harvesting and training on security datasets.
 
 ## Features
 
+### APK Analysis (Original Features)
 - **APK Extraction & Decompilation**: Automated extraction and decompilation of APK files using jadx
 - **Manifest Analysis**: Parse Android manifest files to extract app metadata, permissions, and components
 - **File-Level Metadata Extraction**: Comprehensive analysis of individual files within APKs including:
@@ -27,6 +28,13 @@ A tool for automated analysis of APKs to identify dependencies, de-obfuscate cod
 - **Security Assessment**: Identify potential security issues and vulnerabilities
 - **Batch Processing**: Process multiple APK files in a single run
 
+### Security LLM Training Framework (New)
+- **Metasploit PoC Harvesting**: Automated extraction and annotation of Metasploit Framework modules
+- **Dataset Preparation**: Comprehensive corpus preparation with ethical safeguards and content filtering
+- **Fine-tuning Pipeline**: HuggingFace Transformers integration with PEFT/LoRA support
+- **Ethical Guidelines**: Built-in ethical considerations and responsible AI practices
+- **Multiple Template Types**: Diverse training templates for code explanation, vulnerability analysis, usage guidance, technical details, and mitigation strategies
+
 ## Directory Structure
 
 ```
@@ -34,7 +42,18 @@ reD2/
 ├── main.py              # Entry point - orchestrates APK processing
 ├── requirements.txt     # Python dependencies
 ├── README.md           # This file
-├── example_pyghidra_integration.py  # Example script demonstrating Ghidra integration
+├── scripts/            # Security LLM training framework
+│   ├── __init__.py     # Package initialization
+│   ├── harvest_metasploit_pocs.py    # Metasploit PoC harvesting
+│   ├── prepare_security_corpus.py    # Dataset preparation and annotation
+│   └── finetune_sec_llm.py          # HuggingFace fine-tuning with PEFT/LoRA
+├── docs/               # Documentation
+│   ├── project_structure.md          # Framework overview
+│   ├── dataset_schema.md             # Dataset format documentation
+│   ├── prompt_templates.md           # Example prompt templates
+│   └── ethical_guidelines.md         # Ethical and legal guidelines
+├── examples/           # Example scripts
+│   └── example_pyghidra_integration.py  # Example script demonstrating Ghidra integration
 ├── apks/               # Directory for APK files to analyze
 │   └── README.md       # Instructions for APK placement
 ├── tests/              # Test suite
@@ -75,7 +94,9 @@ reD2/
 
 ## Usage
 
-### Basic Usage
+### APK Analysis
+
+#### Basic Usage
 
 1. Place APK files in the `apks/` directory
 2. Run reD2:
@@ -83,7 +104,7 @@ reD2/
    python main.py
    ```
 
-### Advanced Options
+#### Advanced Options
 
 ```bash
 # Use a specific model type
@@ -100,6 +121,60 @@ python main.py --verbose
 
 # Use a specific model name
 python main.py --model-type codellama --model-name "codellama/CodeLlama-13b-Instruct-hf"
+```
+
+### Security LLM Training Framework
+
+#### 1. Harvest Metasploit PoCs
+
+```bash
+# Basic harvesting
+python scripts/harvest_metasploit_pocs.py --output metasploit_dataset.jsonl
+
+# Limited harvesting with specific categories
+python scripts/harvest_metasploit_pocs.py --limit 100 --categories exploits auxiliary
+
+# Verbose mode with custom output directory
+python scripts/harvest_metasploit_pocs.py --verbose --clone-dir /tmp/msf --keep-clone
+```
+
+#### 2. Prepare Training Corpus
+
+```bash
+# Prepare training corpus from harvested data
+python scripts/prepare_security_corpus.py --input metasploit_dataset.jsonl --output training_corpus.jsonl
+
+# Merge multiple datasets
+python scripts/prepare_security_corpus.py --merge-datasets dataset1.jsonl dataset2.jsonl --output combined_corpus.jsonl
+
+# Custom configuration with statistics
+python scripts/prepare_security_corpus.py --input data.jsonl --samples-per-item 5 --stats-output stats.json
+```
+
+#### 3. Fine-tune Security LLM
+
+```bash
+# Basic fine-tuning
+python scripts/finetune_sec_llm.py --train-data training_corpus.jsonl --model-name microsoft/DialoGPT-medium
+
+# Advanced fine-tuning with LoRA
+python scripts/finetune_sec_llm.py --train-data corpus.jsonl --model-name codellama/CodeLlama-7b-Instruct-hf --use-lora
+
+# Custom configuration with monitoring
+python scripts/finetune_sec_llm.py --train-data corpus.jsonl --epochs 5 --batch-size 8 --use-wandb
+```
+
+#### Complete Pipeline Example
+
+```bash
+# 1. Harvest Metasploit modules
+python scripts/harvest_metasploit_pocs.py --limit 1000 --output metasploit_pocs.jsonl
+
+# 2. Prepare training corpus
+python scripts/prepare_security_corpus.py --input metasploit_pocs.jsonl --output security_corpus.jsonl --samples-per-item 3
+
+# 3. Fine-tune model
+python scripts/finetune_sec_llm.py --train-data security_corpus.jsonl --model-name microsoft/DialoGPT-medium --use-lora --epochs 3
 ```
 
 ### File Metadata Analysis
@@ -382,16 +457,28 @@ The test suite covers:
 
 ## Requirements
 
+### Core Dependencies
+
 - Python 3.8+
 - jadx (Java decompiler)
-- Required Python packages (see requirements.txt):
-  - transformers (for LLM models)
-  - torch (PyTorch for model inference)
-  - sentencepiece (tokenization)
-  - androguard (APK parsing and analysis)
-  - python-magic (file type detection)
-  - frida-tools (dynamic analysis support)
-  - ssdeep (fuzzy hashing for shared library analysis)
+
+### Python Packages
+
+**APK Analysis:**
+- transformers (for LLM models)
+- torch (PyTorch for model inference)
+- sentencepiece (tokenization)
+- androguard (APK parsing and analysis)
+- python-magic (file type detection)
+- frida-tools (dynamic analysis support)
+
+**Security LLM Training:**
+- datasets (HuggingFace datasets)
+- peft (Parameter-Efficient Fine-Tuning)
+- accelerate (distributed training)
+- wandb (experiment tracking)
+
+See `requirements.txt` for complete dependency list with versions.
 
 ### Optional Dependencies for Enhanced Analysis
 
@@ -453,3 +540,34 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## Disclaimer
 
 This tool is intended for security research and educational purposes. Ensure you have proper authorization before analyzing APK files. The authors are not responsible for any misuse of this tool.
+
+## Ethical Guidelines for Security LLM Training
+
+**⚠️ IMPORTANT: The Security LLM Training Framework is provided STRICTLY FOR EDUCATIONAL AND AUTHORIZED SECURITY RESEARCH PURPOSES ONLY.**
+
+### Permitted Uses
+- Educational research and training
+- Authorized penetration testing with written permission
+- Academic research into cybersecurity
+- Developing defensive security measures
+
+### Prohibited Uses
+- Malicious attacks or unauthorized access
+- Criminal activities
+- Privacy violations
+- Any use without proper authorization
+
+### Key Principles
+- **Authorization Required**: Always obtain explicit written permission
+- **Educational Focus**: Emphasize learning and defensive security
+- **Responsible Disclosure**: Follow responsible vulnerability disclosure practices
+- **Legal Compliance**: Ensure all activities comply with applicable laws
+
+For complete ethical guidelines, see `docs/ethical_guidelines.md`.
+
+## Documentation
+
+- **Project Structure**: `docs/project_structure.md` - Overview of the Security LLM Training Framework
+- **Dataset Schema**: `docs/dataset_schema.md` - Data formats and schemas
+- **Prompt Templates**: `docs/prompt_templates.md` - Example training templates
+- **Ethical Guidelines**: `docs/ethical_guidelines.md` - Comprehensive ethical and legal guidelines

@@ -3,6 +3,12 @@ transformers>=4.30.0
 torch>=2.0.0
 sentencepiece>=0.1.99
 
+# LLM training and fine-tuning
+datasets>=2.0.0
+peft>=0.4.0
+accelerate>=0.20.0
+wandb>=0.15.0
+
 # APK analysis tools
 # apkutils>=0.10.2
 # jadx-wrapper>=0.1.0
@@ -17,4 +23,4 @@ frida-tools>=12.0.0
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
-ssdeep>=3.4
+# ssdeep>=3.4  # Commented out due to compilation issues
