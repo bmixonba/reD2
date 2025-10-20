@@ -27,6 +27,7 @@ and will not raise import errors when imported.
 
 import os
 import sys
+import pathlib
 import logging
 import tempfile
 import shutil
@@ -90,7 +91,7 @@ class PyGhidraAnalyzer:
         self.logger = logging.getLogger(__name__)
         self.ghidra_install_dir = None
         self.ghidra_install_dir = ghidra_install_dir or os.getenv('GHIDRA_INSTALL_DIR')
-        print(f"pyghidra_integration.PyGhidraAnalyzer.__init__.self.ghidra_install_dir={self.ghidra_install_dir}, PYGHIDRA_AVAILABLE={PYGHIDRA_AVAILABLE}")
+        print(f"pyghidra_integration.PyGhidraAnalyzer.__init__.self.ghidra_install_dir={self.ghidra_install_dir}, PYGHIDRA_AVAILABLE={PYGHIDRA_AVAILABLE}, library_path={library_path}")
         self.launcher = None
         self.current_program = None
         self._initialized = False
@@ -180,11 +181,94 @@ class PyGhidraAnalyzer:
             'analysis_summary': {}
         }
         
+        pyghidra.start()
+        cleanup = False
+
+        from ghidra.app.decompiler import DecompInterface
+        from ghidra.util.task import ConsoleTaskMonitor
+
+        library_path = Path(library_path).resolve()
+        analyze=True
+        verbose=True
+
+        print(f"_import_and_analyze. self.program_context={library_path}")
+        output_path = "/media/conntrack/Seagate1/git/reD2/utils"
+
+        if not output_path:
+            output_path = library_path.with_suffix('.c')
+        else:
+            output_path = Path(output_path).resolve()
+            if output_path.is_dir():
+                library_path = library_path.name
+                output_path = output_path / f"{library_path}.c"
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if cleanup:
+            temp_dir = tempfile.mkdtemp(prefix="ghidra_")
+            project_location = temp_dir
+            project_name = "temp_project"
+        else:
+            project_location = None
+            project_name = None
         try:
-            pyghidra.start()
 
-            program = self._import_and_analyze(library_path)
+            with pyghidra.open_program(library_path, project_name=project_name, 
+                                              project_location=project_location, analyze=analyze) as flat_api:
+                        program = flat_api.getCurrentProgram()
+                        monitor = ConsoleTaskMonitor()
+                        
+                        if verbose:
+                            print(f"Program loaded: {program.getName()}")
+                            print(f"Architecture: {program.getLanguage().getProcessor().toString()}")
+                        
+                        decompiler = DecompInterface()
+                        decompiler.openProgram(program)
+                        
+                        function_manager = program.getFunctionManager()
+                        functions = list(function_manager.getFunctions(True))
+                        
+                        if verbose:
+                            print(f"Found {len(functions)} functions")
+                        
+                        with open(output_path, 'w') as f:
+                            f.write(f"// Decompiled using PyGhidra\n")
+                            f.write(f"// Program: {program.getName()}\n")
+                            f.write(f"// Architecture: {program.getLanguage().getProcessor().toString()}\n\n")
+                            
+                            successful = 0
+                            for function in functions:
+                                if function.isExternal():
+                                    continue
+                                
+                                if verbose:
+                                    print(f"Decompiling: {function.getName()} @ {function.getEntryPoint()}")
+                                
+                                results = decompiler.decompileFunction(function, 60, monitor)
+                                
+                                if results.decompileCompleted():
+                                    f.write(f"// Function: {function.getName()}\n")
+                                    f.write(f"// Address: {function.getEntryPoint()}\n")
+                                    f.write(f"{results.getDecompiledFunction().getC()}\n\n")
+                                    successful += 1
+                                else:
+                                    f.write(f"// Failed to decompile: {function.getName()}\n\n")
+                            
+                            if verbose:
+                                print(f"Successfully decompiled {successful} out of {len(functions)} functions")
+                
+        finally:
+            if cleanup and temp_dir and os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir)
+                    if verbose:
+                        print(f"Removed temporary project directory: {temp_dir}")
+                except Exception as e:
+                    if verbose:
+                        print(f"Warning: failed to clean up temp directory: {e}")
 
+
+            """
             with pyghidra.open_project(os.environ["GHIDRA_PROJECT_DIR"], "ExampleProject", create=True) as ghidra:
                 # Import the binary and analyze it
                 program = self._import_and_analyze(ghidra, library_path)
@@ -218,19 +302,23 @@ class PyGhidraAnalyzer:
                 
                 import datetime
                 results['analysis_timestamp'] = datetime.datetime.now().isoformat()
-                
+
         except Exception as e:
             self.logger.error(f"Ghidra analysis failed for {library_path}: {e}")
             results['error'] = str(e)
         
+            """
+                
         return results
     
+    # def _import_and_analyze(self, library_path: str):
     def _import_and_analyze(self, ghidra, library_path: str):
         """Import binary into Ghidra and run auto-analysis."""
         try:
 
             self.program_context = pyghidra.open_program(self.library_path, analyze=True)
-            self.flat_api = prog_context.__enter__()
+            print(f"_import_and_analyze. self.program_context={self.program_context}")
+            self.flat_api = self.program_context # .__enter__()
             self.program = flat_api.getCurrentProgram()
             from ghidra.app.decompiler import DecompInterface
 
@@ -620,7 +708,7 @@ class PyGhidraAnalyzer:
         return summary
 
 
-def get_analyzer_instance(ghidra_install_dir: Optional[str] = None) -> PyGhidraAnalyzer:
+def get_analyzer_instance(ghidra_install_dir: Optional[str] = None, library_path: Optional[str] = None) -> PyGhidraAnalyzer:
     """
     Factory function to get a PyGhidraAnalyzer instance.
     
@@ -630,7 +718,7 @@ def get_analyzer_instance(ghidra_install_dir: Optional[str] = None) -> PyGhidraA
     Returns:
         PyGhidraAnalyzer instance
     """
-    return PyGhidraAnalyzer(ghidra_install_dir)
+    return PyGhidraAnalyzer(ghidra_install_dir=ghidra_install_dir, library_path=library_path)
 
 
 def check_pyghidra_availability() -> Tuple[bool, str]:
@@ -673,13 +761,17 @@ def analyze_with_pyghidra(library_path: str, **kwargs) -> Dict[str, Any]:
     Returns:
         Analysis results dictionary
     """
-    analyzer = get_analyzer_instance()
-    return analyzer.analyze_library(library_path, **kwargs)
+
+    print(f"analyze_with_pyghidra. library_path={library_path}")
+    analyzer = get_analyzer_instance(library_path=library_path)
+    return analyzer.analyze_library(library_path=library_path, **kwargs)
+
 def test_pyghidra():
     """ """
-    pyghidra_analyzer = get_analyzer_instance()
     lib_path = "/media/conntrack/Seagate1/git/vpn-osint2/VPNSuperUnlimitedProxy/SourceArm/lib/arm64-v8a/libtnccs.so"
-    pyghidra_analyzer.analyze_library(lib_path)
+    print(f"test_pyghidra. lib_path={lib_path}")
+    pyghidra_analyzer = analyze_with_pyghidra(lib_path)
+    # pyghidra_analyzer.analyze_library(lib_path)
 
 def main():
     """"""
