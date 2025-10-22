@@ -26,7 +26,9 @@ and will not raise import errors when imported.
 """
 
 import os
+import binascii
 import sys
+import json
 import pathlib
 import logging
 import tempfile
@@ -144,7 +146,8 @@ class PyGhidraAnalyzer:
                        extract_functions: bool = True,
                        extract_xrefs: bool = True,
                        extract_strings: bool = True,
-                       custom_scripts: Optional[List[str]] = None) -> Dict[str, Any]:
+                       custom_scripts: Optional[List[str]] = None,
+                       output_path: Optional[str] = None) -> Dict[str, Any]:
         """
         Perform comprehensive Ghidra analysis on a shared library.
         
@@ -154,6 +157,7 @@ class PyGhidraAnalyzer:
             extract_xrefs: Whether to extract cross-references
             extract_strings: Whether to extract string analysis
             custom_scripts: List of Ghidra script paths to execute
+            output_path: String to the output directroy.
             
         Returns:
             Dictionary containing Ghidra analysis results
@@ -173,7 +177,7 @@ class PyGhidraAnalyzer:
             'library_path': library_path,
             'analysis_timestamp': None,
             'functions': {},
-            'symbols': {},
+            'symbols': [],
             'cross_references': {},
             'strings': {},
             'memory_layout': {},
@@ -186,16 +190,19 @@ class PyGhidraAnalyzer:
 
         from ghidra.app.decompiler import DecompInterface
         from ghidra.util.task import ConsoleTaskMonitor
+        print(f"analyze_library - BEFORE - library_path={library_path}")
 
         library_path = Path(library_path).resolve()
+        print(f"analyze_library - AFTER - library_path={library_path}")
         analyze=True
         verbose=True
 
-        print(f"_import_and_analyze. self.program_context={library_path}")
-        output_path = "/media/conntrack/Seagate1/git/reD2/utils"
+        print(f"analyze_library. self.program_context={library_path}")
+        
 
         if not output_path:
             output_path = library_path.with_suffix('.c')
+
         else:
             output_path = Path(output_path).resolve()
             if output_path.is_dir():
@@ -203,6 +210,7 @@ class PyGhidraAnalyzer:
                 output_path = output_path / f"{library_path}.c"
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
+
 
         if cleanup:
             temp_dir = tempfile.mkdtemp(prefix="ghidra_")
@@ -215,8 +223,31 @@ class PyGhidraAnalyzer:
 
             with pyghidra.open_program(library_path, project_name=project_name, 
                                               project_location=project_location, analyze=analyze) as flat_api:
-                        program = flat_api.getCurrentProgram()
                         monitor = ConsoleTaskMonitor()
+                        program = flat_api.getCurrentProgram()
+                        self.current_program = program
+                        
+                        if extract_functions:
+                            results['functions'] = self._extract_functions(program)
+
+                        if extract_xrefs:
+                            results['cross_references'] = self._extract_cross_references(program)
+                        
+                        if extract_strings:
+                            results['strings'] = self._extract_ghidra_strings(program)
+                        
+                        # Extract memory layout and symbols
+                        results['symbols'] = self._extract_symbols(program)
+                        results['memory_layout'] = self._extract_memory_layout(program)
+                        """ 
+                        program.getSymbolTable()
+                        for s in symbols.getAllSymbols(True):
+                            if s.isGlobal():
+                                results['symbols'].append(s)
+
+                                print(f"symbols={s}")
+                        """ 
+
                         
                         if verbose:
                             print(f"Program loaded: {program.getName()}")
@@ -227,9 +258,23 @@ class PyGhidraAnalyzer:
                         
                         function_manager = program.getFunctionManager()
                         functions = list(function_manager.getFunctions(True))
+
+                        # Execute custom scripts if provided
+                        if custom_scripts:
+                            results['custom_script_results'] = self._execute_custom_scripts(
+                                program, custom_scripts
+                            )
+                        
+                        # Generate analysis summary
+                        results['analysis_summary'] = self._generate_analysis_summary(results)
+                        
+                        import datetime
+                        results['analysis_timestamp'] = datetime.datetime.now().isoformat()
+
                         
                         if verbose:
                             print(f"Found {len(functions)} functions")
+                        """ 
                         
                         with open(output_path, 'w') as f:
                             f.write(f"// Decompiled using PyGhidra\n")
@@ -256,6 +301,7 @@ class PyGhidraAnalyzer:
                             
                             if verbose:
                                 print(f"Successfully decompiled {successful} out of {len(functions)} functions")
+                        """ 
                 
         finally:
             if cleanup and temp_dir and os.path.exists(temp_dir):
@@ -269,39 +315,7 @@ class PyGhidraAnalyzer:
 
 
             """
-            with pyghidra.open_project(os.environ["GHIDRA_PROJECT_DIR"], "ExampleProject", create=True) as ghidra:
-                # Import the binary and analyze it
-                program = self._import_and_analyze(ghidra, library_path)
-                if not program:
-                    return {'error': 'Failed to import and analyze library in Ghidra'}
                 
-                self.current_program = program
-                
-                # Perform requested analyses
-                if extract_functions:
-                    results['functions'] = self._extract_functions(program)
-                
-                if extract_xrefs:
-                    results['cross_references'] = self._extract_cross_references(program)
-                
-                if extract_strings:
-                    results['strings'] = self._extract_ghidra_strings(program)
-                
-                # Extract memory layout and symbols
-                results['symbols'] = self._extract_symbols(program)
-                results['memory_layout'] = self._extract_memory_layout(program)
-                
-                # Execute custom scripts if provided
-                if custom_scripts:
-                    results['custom_script_results'] = self._execute_custom_scripts(
-                        program, custom_scripts
-                    )
-                
-                # Generate analysis summary
-                results['analysis_summary'] = self._generate_analysis_summary(results)
-                
-                import datetime
-                results['analysis_timestamp'] = datetime.datetime.now().isoformat()
 
         except Exception as e:
             self.logger.error(f"Ghidra analysis failed for {library_path}: {e}")
@@ -383,15 +397,19 @@ class PyGhidraAnalyzer:
             'function_statistics': {}
         }
         
+        print(f"extract_function - ENTER")
         try:
-            if not GHIDRA_API_AVAILABLE:
-                return functions_data
+            # if not GHIDRA_API_AVAILABLE:
+            #    return functions_data
                 
             function_manager = program.getFunctionManager()
             functions = function_manager.getFunctions(True)  # True for forward iteration
             
             function_list = []
+
+            print(f"extract_function - ENTER LOOP")
             for func in functions:
+                print(f"extract_function - func.getName()={func.getName()}")
                 func_info = {
                     'name': func.getName(),
                     'address': str(func.getEntryPoint()),
@@ -401,6 +419,7 @@ class PyGhidraAnalyzer:
                     'is_external': func.isExternal(),
                     'is_thunk': func.isThunk(),
                     'calling_convention': str(func.getCallingConventionName()),
+                    'instructions' : [],
                     'signature': func.getSignature().getPrototypeString()
                 }
                 
@@ -408,9 +427,27 @@ class PyGhidraAnalyzer:
                 instruction_count = 0
                 listing = program.getListing()
                 instructions = listing.getInstructions(func.getBody(), True)
-                for _ in instructions:
+                """
+                code_units = listing.getInstructions(func.getBody(), True)
+                for code_unit in code_units:
+                    if isinstance(code_unit, ghidra.program.model.listing.Instruction):
+                        instruction_count += 1
+                        assembly_string = code_unit.toString()
+                        instruction_bytes = code_unit.getBytes()
+                        binary_rep = binascii.hexlify(instruction_bytes).decode('ascii')
+                        func_info['instructions'].append((assembly_string, instruction_bytes, binary_rep))
+                """
+
+                instruction_count = 0
+                for i in instructions:
+                    assembly_string = i.toString()
+                    instruction_bytes = i.getBytes()
+                    binary_rep = binascii.hexlify(instruction_bytes).decode('ascii')
+                    func_info['instructions'].append((assembly_string, binary_rep))
                     instruction_count += 1
+                #    if isinstance(code_unit, Instruction):
                 func_info['instruction_count'] = instruction_count
+                print(f"extract_function.instruction_count={instruction_count}")
                 
                 function_list.append(func_info)
             
@@ -454,8 +491,8 @@ class PyGhidraAnalyzer:
         }
         
         try:
-            if not GHIDRA_API_AVAILABLE:
-                return xrefs_data
+            # if not GHIDRA_API_AVAILABLE:
+            #    return xrefs_data
                 
             from ghidra.program.model.symbol import RefType
             
@@ -507,8 +544,8 @@ class PyGhidraAnalyzer:
         }
         
         try:
-            if not GHIDRA_API_AVAILABLE:
-                return strings_data
+            # if not GHIDRA_API_AVAILABLE:
+            #    return strings_data
                 
             listing = program.getListing()
             data_iterator = listing.getDefinedData(True)
@@ -548,6 +585,7 @@ class PyGhidraAnalyzer:
     
     def _extract_symbols(self, program) -> Dict[str, Any]:
         """Extract symbol table information."""
+        print(f"_extract_symbols - ENTER")
         symbols_data = {
             'global_symbols': [],
             'local_symbols': [],
@@ -556,8 +594,9 @@ class PyGhidraAnalyzer:
         }
         
         try:
-            if not GHIDRA_API_AVAILABLE:
-                return symbols_data
+            # if not GHIDRA_API_AVAILABLE:
+            #   print(f"_extract_symbols - EARLY EXIT - GHIDRA_API_AVAILABLE={GHIDRA_API_AVAILABLE}!!!")
+            #    return symbols_data
                 
             symbol_table = program.getSymbolTable()
             all_symbols = symbol_table.getAllSymbols(True)
@@ -608,8 +647,8 @@ class PyGhidraAnalyzer:
         }
         
         try:
-            if not GHIDRA_API_AVAILABLE:
-                return memory_data
+            # if not GHIDRA_API_AVAILABLE:
+            #    return memory_data
                 
             memory = program.getMemory()
             blocks = memory.getBlocks()
@@ -764,11 +803,16 @@ def analyze_with_pyghidra(library_path: str, **kwargs) -> Dict[str, Any]:
 
     print(f"analyze_with_pyghidra. library_path={library_path}")
     analyzer = get_analyzer_instance(library_path=library_path)
-    return analyzer.analyze_library(library_path=library_path, **kwargs)
+    results = analyzer.analyze_library(library_path=library_path, **kwargs)
+    with open("libopvpnutil.analysis.json" ,"w") as f:
+        json.dump(results, f)
+    # print(f"analyze_with_pyghidra. results={results}")
+    return results
 
 def test_pyghidra():
     """ """
-    lib_path = "/media/conntrack/Seagate1/git/vpn-osint2/VPNSuperUnlimitedProxy/SourceArm/lib/arm64-v8a/libtnccs.so"
+    # lib_path = "/media/conntrack/Seagate1/git/vpn-osint2/VPNSuperUnlimitedProxy/SourceArm/lib/arm64-v8a/libtnccs.so"
+    lib_path = "/media/conntrack/Seagate1/git/reD2/utils/TurboVPN/lib/libopvpnutil.so"
     print(f"test_pyghidra. lib_path={lib_path}")
     pyghidra_analyzer = analyze_with_pyghidra(lib_path)
     # pyghidra_analyzer.analyze_library(lib_path)
