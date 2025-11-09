@@ -274,12 +274,11 @@ class PyGhidraAnalyzer:
                         
                         if verbose:
                             print(f"Found {len(functions)} functions")
-                        """ 
                         
                         with open(output_path, 'w') as f:
-                            f.write(f"// Decompiled using PyGhidra\n")
-                            f.write(f"// Program: {program.getName()}\n")
-                            f.write(f"// Architecture: {program.getLanguage().getProcessor().toString()}\n\n")
+                            # f.write(f"// Decompiled using PyGhidra\n")
+                            # f.write(f"// Program: {program.getName()}\n")
+                            # f.write(f"// Architecture: {program.getLanguage().getProcessor().toString()}\n\n")
                             
                             successful = 0
                             for function in functions:
@@ -289,18 +288,20 @@ class PyGhidraAnalyzer:
                                 if verbose:
                                     print(f"Decompiling: {function.getName()} @ {function.getEntryPoint()}")
                                 
-                                results = decompiler.decompileFunction(function, 60, monitor)
+                                resz = decompiler.decompileFunction(function, 60, monitor)
                                 
-                                if results.decompileCompleted():
-                                    f.write(f"// Function: {function.getName()}\n")
-                                    f.write(f"// Address: {function.getEntryPoint()}\n")
-                                    f.write(f"{results.getDecompiledFunction().getC()}\n\n")
+                                if resz.decompileCompleted():
+                                    # f.write(f"// Function: {function.getName()}\n")
+                                    # f.write(f"// Address: {function.getEntryPoint()}\n")
+                                    f.write(f"{resz.getDecompiledFunction().getC()}\n\n")
                                     successful += 1
                                 else:
-                                    f.write(f"// Failed to decompile: {function.getName()}\n\n")
+                                    """ """
+                                    # f.write(f"// Failed to decompile: {function.getName()}\n\n")
                             
                             if verbose:
                                 print(f"Successfully decompiled {successful} out of {len(functions)} functions")
+                        """ 
                         """ 
                 
         finally:
@@ -789,7 +790,7 @@ def check_pyghidra_availability() -> Tuple[bool, str]:
 
 
 # Module-level convenience functions
-def analyze_with_pyghidra(library_path: str, **kwargs) -> Dict[str, Any]:
+def analyze_with_pyghidra(library_path: str, outfile=None, outdir=None, **kwargs) -> Dict[str, Any]:
     """
     Convenience function to analyze a library with pyghidra.
     
@@ -801,22 +802,123 @@ def analyze_with_pyghidra(library_path: str, **kwargs) -> Dict[str, Any]:
         Analysis results dictionary
     """
 
-    print(f"analyze_with_pyghidra. library_path={library_path}")
+    # print(f"analyze_with_pyghidra. library_path={library_path}")
     analyzer = get_analyzer_instance(library_path=library_path)
     results = analyzer.analyze_library(library_path=library_path, **kwargs)
-    with open("libopvpnutil.analysis.json" ,"w") as f:
+    libname = library_path.split('/')[-1].split('.')[0]
+    with open(outfile ,"w") as f:
         json.dump(results, f)
+
+    functions = {}
+    num = 0
+    for d in results['functions']['function_details']:
+
+        instructions = d['instructions']
+        address = int(d['address'],16)
+        if len(instructions) > 0:
+            tmp = []
+            num += 1 
+            # print(f"address={address}, type(address)={type(address)}")
+            for i in instructions:
+                tmp += '\n' + f"{hex(address)}," + i[0]
+                address += 4
+            tmp = ''.join(tmp)
+            if f'{d["name"]}.{num}' not in functions:
+                functions[f'{d["name"]}.{num}'] = None
+
+            functions[f'{d["name"]}.{num}'] = tmp
+    for name, body in functions.items():
+        try:
+            # print(f"body={body}")
+            # exit()
+            os.makedirs(outdir, exist_ok=True)
+            with open(os.path.join(outdir, f"{libname}-{name}"), "w") as f:
+                f.write(body)
+        except Exception as  e:
+            print(f"e={e}")
     # print(f"analyze_with_pyghidra. results={results}")
     return results
 
 def test_pyghidra():
-    """ """
+    """ 
     # lib_path = "/media/conntrack/Seagate1/git/vpn-osint2/VPNSuperUnlimitedProxy/SourceArm/lib/arm64-v8a/libtnccs.so"
-    lib_path = "/media/conntrack/Seagate1/git/reD2/utils/TurboVPN/lib/libopvpnutil.so"
-    print(f"test_pyghidra. lib_path={lib_path}")
-    pyghidra_analyzer = analyze_with_pyghidra(lib_path)
-    # pyghidra_analyzer.analyze_library(lib_path)
+    # lib_path = "/media/conntrack/Seagate1/git/reD2/utils/TurboVPN/lib/libopvpnutil.so"
+    # lib_path = "/media/conntrack/Seagate1/git/Reset/LeapFitness/StepTracker/SourceArm/lib/arm64-v8a/liblpcore.so"
+    
+    # lib_path = "/media/conntrack/Seagate1/git/reD2/utils/libtnccs.so"
+    
+    # lib_path = "/media/conntrack/Seagate1/git/reD2/utils/TurboVPN/lib/libandroidbridge.so"
 
+    # lib_path = "/media/conntrack/Seagate1/git/reD2/utils/TurboVPN/lib/libcharon.so"
+    # lib_path = "/media/conntrack/Seagate1/git/reD2/utils/TurboVPN/lib/libipsec.so"
+    """
+
+    shlib_file = sys.argv[1]
+    shlibs = []
+    with open(shlib_file) as f:
+        shlibs = [name[:-1] for name in f.readlines()]
+
+    # dirs = ["apk" : -6,
+    # "v1.0": -6,
+    # "v1.0.1": -6,
+    # "V2": -6,
+    dirs = {"apk" : -6 ,
+            "Apk" : -6,
+            "Arm" : -6,
+            "assets": -8,
+            "build" : -8,
+            "Candidate1": -6,
+            "Candidate10": -6,
+            "Candidate12": -6,
+            "Candidate5": -6,
+            "Candidate6": -6,
+            "Candidate7": -6,
+            "HuaweiVersion" : -6,
+            "OtherWebsiteVersion" : -6,
+            "Source" : -6,
+            "SourceAndroid" : -7,
+            "SourceObjection" : -6,
+            "Test" : -6,
+            "TencentVersion" : -6,
+            "v1.0" : -6,
+            "v1.0.1": -6,
+            "V2" : -6,
+            "WebsiteVersion" : -6 # Speedin/WebsiteVersion
+            }
+
+    od = sys.argv[2] # /media/conntrack/Seagate1/git/AppFunctions
+    print(f"od={od}")
+
+    for f in shlibs:
+        fsplit = f.split("/")
+        d = fsplit[-5]
+        outdir=None
+        if d in dirs.keys():
+            outdir = os.path.join(od, fsplit[dirs[d]])
+        else:
+            """ """
+            outdir = os.path.join(od, d)
+        if f[0] == '.':
+            f = "/home/conntrack/git/vpn-osint/apks" + f[1:]
+        lib_path = f
+        outfile =  outdir.split('/')[-1] + '.' + fsplit[-1] +  '.analysis.json'
+        print(f"main - lib_path={lib_path}, outfile={outfile}, od={od}, outdir={outdir}")
+        pyghidra_analyzer = analyze_with_pyghidra(lib_path, outfile=outfile, outdir=outdir)
+
+
+
+    exit()
+    # lib_path = # sys.argv[1]
+    # outfile = # sys.argv[2]
+
+
+    if False:
+        lib_path = sys.argv[1]
+        outfile = sys.argv[2]
+        outdir = sys.argv[3]
+
+        pyghidra_analyzer = analyze_with_pyghidra(lib_path, outfile=outfile, outdir=outdir)
+        # pyghidra_analyzer.analyze_library(lib_path
 def main():
     """"""
     test_pyghidra()
