@@ -1,6 +1,39 @@
-# Security Corpus Pipeline Examples
+# reD2 Examples
 
-This directory contains example configurations and usage patterns for the Security Corpus Harvesting Pipeline.
+This directory contains example configurations, code samples, and usage patterns for reD2's features.
+
+## DEX Code Explanation Examples
+
+### facebook_ads_drm_code.java
+Real-world example of obfuscated DRM implementation from Facebook's Audience Network SDK. This code demonstrates:
+- String array obfuscation
+- Control flow obfuscation with character comparisons
+- Android Parcelable implementation for IPC
+- DRM scheme data management using UUIDs
+- Anti-tampering checks with RuntimeException
+
+### facebook_ads_drm_explanation.txt
+Output from the DEX Code Explainer analyzing the Facebook Ads DRM code. Shows:
+- Automatic detection of 2 obfuscation techniques
+- Identification of 4 security concerns
+- Purpose inference (DRM, ExoPlayer, Advertisement SDK)
+- Data structure analysis (Parcelable, Comparator)
+- Actionable recommendations for further analysis
+
+To generate this explanation yourself:
+```bash
+python scripts/explain_dex_code.py \
+  --file examples/facebook_ads_drm_code.java \
+  --package com.facebook.ads.internal.exoplayer2.drm \
+  --output my_explanation.txt
+```
+
+## PyGhidra Integration Example
+
+### example_pyghidra_integration.py
+Demonstrates integration with Ghidra for advanced binary analysis of native libraries (.so files) extracted from APKs.
+
+## Security Corpus Pipeline Examples
 
 ## Quick Start
 
