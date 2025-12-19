@@ -7,6 +7,11 @@ A tool for automated analysis of APKs to identify dependencies, de-obfuscate cod
 ### APK Analysis (Original Features)
 - **APK Extraction & Decompilation**: Automated extraction and decompilation of APK files using jadx
 - **Manifest Analysis**: Parse Android manifest files to extract app metadata, permissions, and components
+- **DEX Code Explanation**: NEW! Automated explanation of decompiled DEX code with obfuscation detection and security analysis
+  - Identify obfuscation techniques (string arrays, control flow, reflection, native methods)
+  - Detect security patterns (DRM, encryption, anti-tampering)
+  - Generate human-readable explanations and analysis recommendations
+  - Support for command-line and Python API usage
 - **File-Level Metadata Extraction**: Comprehensive analysis of individual files within APKs including:
   - MIME type and magic number detection
   - File size analysis and categorization
@@ -46,8 +51,9 @@ reD2/
 ├── main.py              # Entry point - orchestrates APK processing
 ├── requirements.txt     # Python dependencies
 ├── README.md           # This file
-├── scripts/            # Security LLM training framework
+├── scripts/            # Security LLM training framework and analysis tools
 │   ├── __init__.py     # Package initialization
+│   ├── explain_dex_code.py            # NEW! Explain decompiled DEX code (CLI tool)
 │   ├── harvest_security_corpus.py      # Main orchestration script for comprehensive data harvesting
 │   ├── harvest_metasploit_pocs.py      # Metasploit PoC harvesting
 │   ├── prepare_security_corpus.py      # Dataset preparation and annotation
@@ -71,23 +77,28 @@ reD2/
 │   ├── project_structure.md           # Framework overview
 │   ├── dataset_schema.md              # Dataset format documentation
 │   ├── data_schema.md                 # Comprehensive data schema documentation
+│   ├── dex_code_explanation.md        # NEW! DEX code explanation feature guide
 │   ├── security_corpus_pipeline.md    # Pipeline architecture and usage guide
 │   ├── prompt_templates.md            # Example prompt templates
 │   ├── ethical_guidelines.md          # Ethical and legal guidelines
 │   ├── ethical_guidelines_comprehensive.md # Comprehensive ethical framework
 │   └── train_security_llm_usage.md    # Training pipeline usage guide
-├── examples/           # Example scripts
-│   └── example_pyghidra_integration.py  # Example script demonstrating Ghidra integration
+├── examples/           # Example scripts and code samples
+│   ├── example_pyghidra_integration.py  # Example script demonstrating Ghidra integration
+│   ├── facebook_ads_drm_code.java       # NEW! Example obfuscated DRM code
+│   └── facebook_ads_drm_explanation.txt # NEW! Example explanation output
 ├── apks/               # Directory for APK files to analyze
 │   └── README.md       # Instructions for APK placement
 ├── tests/              # Test suite
 │   ├── __init__.py     # Test package initialization
 │   ├── test_apk.py     # APK analysis tests
+│   ├── test_dex_code_explainer.py     # NEW! DEX code explanation tests
 │   ├── test_shared_library_analyzer.py  # Shared library analysis tests
 │   └── test_train_security_llm.py     # Security LLM training tests
 └── utils/              # Utility modules
     ├── __init__.py     # Package initialization
     ├── apk.py          # APK extraction, decompilation, and file analysis
+    ├── dex_code_explainer.py          # NEW! DEX code explanation and analysis
     ├── llm.py          # LLM integration and code analysis
     ├── shared_library_analyzer.py  # Advanced shared library (.so) analysis
     └── pyghidra_integration.py     # PyGhidra integration for enhanced analysis
@@ -147,6 +158,44 @@ python main.py --verbose
 # Use a specific model name
 python main.py --model-type codellama --model-name "codellama/CodeLlama-13b-Instruct-hf"
 ```
+
+### DEX Code Explanation (NEW!)
+
+The DEX Code Explainer helps you understand obfuscated or complex decompiled Android code.
+
+#### Quick Start
+
+```bash
+# Explain code from a file
+python scripts/explain_dex_code.py --file path/to/code.java
+
+# With package context for better analysis
+python scripts/explain_dex_code.py --file DrmInitData.java --package com.facebook.ads.internal.exoplayer2.drm
+
+# Try the included example
+python scripts/explain_dex_code.py --file examples/facebook_ads_drm_code.java --package com.facebook.ads.internal.exoplayer2.drm
+
+# Save output to file
+python scripts/explain_dex_code.py --file code.java --output explanation.txt
+
+# Read from stdin
+cat code.java | python scripts/explain_dex_code.py --stdin
+```
+
+#### What You Get
+
+The explainer provides:
+- **Summary**: High-level overview of code functionality
+- **Purpose**: Detailed explanation of what the code does
+- **Obfuscation Detection**: Identifies string arrays, control flow obfuscation, reflection, native methods
+- **Security Analysis**: DRM patterns, encryption usage, anti-tampering checks
+- **Recommendations**: Actionable next steps for deeper analysis with Frida, jadx, Ghidra
+
+#### Example Output
+
+See `examples/facebook_ads_drm_explanation.txt` for a complete example analyzing Facebook Ads SDK DRM code.
+
+For detailed documentation, see [docs/dex_code_explanation.md](docs/dex_code_explanation.md)
 
 ### Security LLM Training Framework
 
